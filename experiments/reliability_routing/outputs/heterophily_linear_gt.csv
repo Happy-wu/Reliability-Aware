@@ -1,0 +1,4 @@
+model,graph_type,seed,best_val_acc,test_acc_at_best_val,gate_local_similarity_corr,elapsed_sec
+linear_gt,heterophily,0,0.8388888835906982,0.817460298538208,nan,13.426339864730835
+linear_gt,heterophily,1,0.855555534362793,0.8380952477455139,nan,12.051563024520874
+linear_gt,heterophily,2,0.8777777552604675,0.7952380776405334,nan,4.191924333572388

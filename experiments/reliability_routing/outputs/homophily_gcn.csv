@@ -1,0 +1,2 @@
+model,graph_type,seed,best_val_acc,test_acc_at_best_val,gate_local_similarity_corr,elapsed_sec
+gcn,homophily,0,0.6388888955116272,0.5185185074806213,nan,0.01001119613647461
