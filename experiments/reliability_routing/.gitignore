@@ -8,3 +8,6 @@ venv/
 
 # Downloaded and generated datasets can be several gigabytes.
 data/
+
+# Reusable expert checkpoints are generated artifacts and can be large.
+outputs/**/_expert_cache/

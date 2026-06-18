@@ -1,5 +1,36 @@
 # Reliability-Aware Linear Graph Transformer: Minimal Experiment
 
+## Current Main Pipeline
+
+The current research pipeline uses complete experts and logits-level routing:
+
+- `LocalExpert`: two-layer PyG GCN.
+- `GlobalExpert`: independent linear-attention classifier.
+- `fixed_alpha`: fixed logits interpolation.
+- `ordinary_gate`: node-wise gate without reliability information.
+- `reliability_gate`: same gate architecture with reliability information.
+- Main edge protocol: symmetrized undirected edges.
+- Directed sensitivity: `source_to_target` and `target_to_source`.
+
+Main batch entry point:
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python run_expert_fusion_suite.py \
+  --datasets Cora Citeseer Pubmed Chameleon Squirrel Actor \
+  --models gcn_pyg global_only ordinary_gate reliability_gate \
+  --fixed-alphas 0 0.25 0.5 0.75 1.0 \
+  --edge-protocol undirected \
+  --runs 10 \
+  --data-root data \
+  --out-dir outputs/expert_fusion_undirected \
+  --no-download \
+  --device cuda
+```
+
+The earlier synthetic and Q/K scripts are archived under
+`scripts/legacy_synthetic/`. Q/K modulation is frozen until reliability-aware
+routing consistently exceeds the ordinary gate.
+
 这个目录用于做第一步简单实验验证，不依赖 PyTorch Geometric。实验目标不是直接追 SOTA，而是快速检查下面两个设计是否有信号：
 
 1. structural reliability state `r_i` 调制 linear attention 的 Q/K；
@@ -37,13 +68,13 @@ reliability representation 是否优于当前浅层投影。encoder 是逐层构
 批量跑一组实验：
 
 ```bash
-python run_batch.py --graph-types heterophily homophily noisy --models mlp gcn linear_gt q_only_gt k_only_gt qk_gt gate_gt reliability_gt --seeds 0 1 2 3 4
+python scripts/legacy_synthetic/run_batch.py --graph-types heterophily homophily noisy --models mlp gcn linear_gt q_only_gt k_only_gt qk_gt gate_gt reliability_gt --seeds 0 1 2 3 4
 ```
 
 快速 smoke test：
 
 ```bash
-python run_batch.py --graph-types heterophily --models linear_gt q_only_gt k_only_gt qk_gt gate_gt reliability_gt --seeds 0 --num-nodes 180 --epochs 2 --patience 2 --hidden-dim 32
+python scripts/legacy_synthetic/run_batch.py --graph-types heterophily --models linear_gt q_only_gt k_only_gt qk_gt gate_gt reliability_gt --seeds 0 --num-nodes 180 --epochs 2 --patience 2 --hidden-dim 32
 ```
 
 批量脚本会输出：
@@ -65,16 +96,16 @@ degree local_similarity neighbor_variance rwse
 单组件消融：
 
 ```bash
-python run_batch.py --models gate_gt reliability_gt --graph-types heterophily homophily noisy --seeds 0 1 2 3 4 5 6 7 8 9 --reliability-components degree --tag rel_only_degree --device cuda
-python run_batch.py --models gate_gt reliability_gt --graph-types heterophily homophily noisy --seeds 0 1 2 3 4 5 6 7 8 9 --reliability-components local_similarity --tag rel_only_local_sim --device cuda
-python run_batch.py --models gate_gt reliability_gt --graph-types heterophily homophily noisy --seeds 0 1 2 3 4 5 6 7 8 9 --reliability-components neighbor_variance --tag rel_only_neighbor_var --device cuda
-python run_batch.py --models gate_gt reliability_gt --graph-types heterophily homophily noisy --seeds 0 1 2 3 4 5 6 7 8 9 --reliability-components rwse --tag rel_only_rwse --device cuda
+python scripts/legacy_synthetic/run_batch.py --models gate_gt reliability_gt --graph-types heterophily homophily noisy --seeds 0 1 2 3 4 5 6 7 8 9 --reliability-components degree --tag rel_only_degree --device cuda
+python scripts/legacy_synthetic/run_batch.py --models gate_gt reliability_gt --graph-types heterophily homophily noisy --seeds 0 1 2 3 4 5 6 7 8 9 --reliability-components local_similarity --tag rel_only_local_sim --device cuda
+python scripts/legacy_synthetic/run_batch.py --models gate_gt reliability_gt --graph-types heterophily homophily noisy --seeds 0 1 2 3 4 5 6 7 8 9 --reliability-components neighbor_variance --tag rel_only_neighbor_var --device cuda
+python scripts/legacy_synthetic/run_batch.py --models gate_gt reliability_gt --graph-types heterophily homophily noisy --seeds 0 1 2 3 4 5 6 7 8 9 --reliability-components rwse --tag rel_only_rwse --device cuda
 ```
 
 Leave-one-component-out 消融示例：
 
 ```bash
-python run_batch.py --models gate_gt reliability_gt --graph-types heterophily homophily noisy --seeds 0 1 2 3 4 5 6 7 8 9 --reliability-components local_similarity neighbor_variance rwse --tag rel_without_degree --device cuda
+python scripts/legacy_synthetic/run_batch.py --models gate_gt reliability_gt --graph-types heterophily homophily noisy --seeds 0 1 2 3 4 5 6 7 8 9 --reliability-components local_similarity neighbor_variance rwse --tag rel_without_degree --device cuda
 ```
 
 `reliability_qk` 只包含 `degree + RWSE`。因此只选择
@@ -86,7 +117,7 @@ python run_batch.py --models gate_gt reliability_gt --graph-types heterophily ho
 先跑当前 separate-head 基线与 branch-specific encoded 版本：
 
 ```bash
-python run_batch.py --models gate_gt gate_gt_encoded qk_gt qk_gt_encoded reliability_gt reliability_gt_encoded --graph-types heterophily homophily noisy --seeds 0 1 2 3 4 5 6 7 8 9 --tag reliability_encoder_compare --device cuda
+python scripts/legacy_synthetic/run_batch.py --models gate_gt gate_gt_encoded qk_gt qk_gt_encoded reliability_gt reliability_gt_encoded --graph-types heterophily homophily noisy --seeds 0 1 2 3 4 5 6 7 8 9 --tag reliability_encoder_compare --device cuda
 ```
 
 建议先在完整 reliability basis 上比较 encoder；只有 encoded 版本出现稳定增益后，
@@ -98,23 +129,23 @@ python run_batch.py --models gate_gt gate_gt_encoded qk_gt qk_gt_encoded reliabi
 先跑异配图：
 
 ```bash
-python run_synthetic.py --graph-type heterophily --model mlp
-python run_synthetic.py --graph-type heterophily --model gcn
-python run_synthetic.py --graph-type heterophily --model linear_gt
-python run_synthetic.py --graph-type heterophily --model reliability_gt
+python scripts/legacy_synthetic/run_synthetic.py --graph-type heterophily --model mlp
+python scripts/legacy_synthetic/run_synthetic.py --graph-type heterophily --model gcn
+python scripts/legacy_synthetic/run_synthetic.py --graph-type heterophily --model linear_gt
+python scripts/legacy_synthetic/run_synthetic.py --graph-type heterophily --model reliability_gt
 ```
 
 再跑同配图和噪声图：
 
 ```bash
-python run_synthetic.py --graph-type homophily --model reliability_gt
-python run_synthetic.py --graph-type noisy --model reliability_gt
+python scripts/legacy_synthetic/run_synthetic.py --graph-type homophily --model reliability_gt
+python scripts/legacy_synthetic/run_synthetic.py --graph-type noisy --model reliability_gt
 ```
 
 如果机器有 CUDA：
 
 ```bash
-python run_synthetic.py --graph-type heterophily --model reliability_gt --device cuda
+python scripts/legacy_synthetic/run_synthetic.py --graph-type heterophily --model reliability_gt --device cuda
 ```
 
 ## Q/K modulation 当前实现
@@ -180,7 +211,7 @@ gamma = 1 + sigmoid(strength) * 0.5 * tanh(delta)
 冻结模型结构后，运行预注册的六个 finalist 对照：
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 python run_synthetic_finalists.py \
+CUDA_VISIBLE_DEVICES=0 python scripts/legacy_synthetic/run_synthetic_finalists.py \
   --seeds 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 \
   --device cuda
 ```
@@ -223,3 +254,38 @@ CUDA_VISIBLE_DEVICES=0 python run_real_suite.py \
 - Chameleon/Squirrel/Actor 使用 10 个官方 Geom-GCN splits。
 - 真实图 RWSE 使用固定种子的 Monte Carlo return probability 估计，避免 PubMed 上的 dense adjacency power。
 - 输出位于 `outputs/real_suite/`，包括数据校验、逐模型 CSV、summary、paired comparisons 和初步分析报告。
+
+### GCN implementation and local-branch diagnostics
+
+First compare the custom sparse GCN, PyG `GCNConv`, and the GT local-only path
+under exactly the same training settings:
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python run_real_suite.py \
+  --datasets Cora Citeseer Pubmed Chameleon Squirrel Actor \
+  --models gcn gcn_pyg local_only_gt gate_gt reliability_gt \
+  --runs 10 \
+  --data-root data \
+  --out-dir outputs/real_gcn_diagnostic \
+  --no-download \
+  --device cuda
+```
+
+Then reproduce the classic GCN protocol on the three Planetoid datasets. This
+profile fixes hidden size 16, dropout 0.5, Adam learning rate 0.01, first-layer
+weight decay 5e-4, 200 epochs, and rolling validation-loss early stopping:
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python run_real_suite.py \
+  --datasets Cora Citeseer Pubmed \
+  --models gcn_pyg \
+  --training-profile classic_gcn \
+  --runs 10 \
+  --data-root data \
+  --out-dir outputs/real_gcn_classic \
+  --no-download \
+  --device cuda
+```
+
+GT result CSV files now include `gate_mean`, `gate_std`, gate range,
+local/global/mixed branch norms, and their mean cosine similarity.

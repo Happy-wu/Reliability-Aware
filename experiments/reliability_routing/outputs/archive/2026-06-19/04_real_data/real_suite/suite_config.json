@@ -1,0 +1,33 @@
+{
+  "code_fingerprint": "fd0a344b950dedf3c56e5970f9bdd16088eb684e5d868a969fa511ae693471cd",
+  "datasets": [
+    "Cora",
+    "Citeseer",
+    "Pubmed",
+    "Chameleon",
+    "Squirrel",
+    "Actor"
+  ],
+  "models": [
+    "mlp",
+    "gcn",
+    "linear_gt",
+    "qk_gt",
+    "gate_gt",
+    "reliability_gt"
+  ],
+  "runs": 10,
+  "normalize_features": true,
+  "rw_steps": 4,
+  "rw_samples": 128,
+  "hidden_dim": 64,
+  "num_layers": 2,
+  "num_heads": 4,
+  "dropout": 0.3,
+  "qk_strength_init": -5.0,
+  "lr": 0.003,
+  "weight_decay": 0.0001,
+  "epochs": 500,
+  "patience": 100,
+  "device": "cuda"
+}

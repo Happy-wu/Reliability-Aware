@@ -12,6 +12,7 @@ from .data import GraphData, standardize
 
 
 REAL_DATASETS = ("Cora", "Citeseer", "Pubmed", "Chameleon", "Squirrel", "Actor")
+EDGE_PROTOCOLS = ("undirected", "source_to_target", "target_to_source")
 
 
 @dataclass(frozen=True)
@@ -227,6 +228,7 @@ def prepare_graph_data(
     rw_samples: int,
     rw_seed: int,
     normalize_features: bool = True,
+    edge_protocol: str = "source_to_target",
     cache_path: Path | None = None,
     cache_key: str | None = None,
 ) -> GraphData:
@@ -234,12 +236,19 @@ def prepare_graph_data(
     if normalize_features:
         x = row_normalize_features(x)
     y = pyg_data.y.long()
-    edge_index = pyg_data.edge_index.long()
+    edge_index = apply_edge_protocol(
+        pyg_data.edge_index.long(),
+        num_nodes=int(pyg_data.num_nodes),
+        protocol=edge_protocol,
+    )
     cached = load_reliability_cache(cache_path, cache_key)
     if cached is None:
+        # Reliability describes the neighbors whose messages are received by
+        # each node. PyG edges are source -> target, so group by target.
+        reliability_edge_index = edge_index.flip(0)
         reliability_gate, reliability_qk, local_similarity = compute_real_reliability(
             x,
-            edge_index,
+            reliability_edge_index,
             rw_steps=rw_steps,
             rw_samples=rw_samples,
             rw_seed=rw_seed,
@@ -267,6 +276,26 @@ def prepare_graph_data(
         test_mask=select_mask(pyg_data.test_mask, split).clone(),
         local_similarity=local_similarity,
     )
+
+
+def apply_edge_protocol(
+    edge_index: torch.Tensor,
+    num_nodes: int,
+    protocol: str,
+) -> torch.Tensor:
+    if protocol not in EDGE_PROTOCOLS:
+        raise ValueError(f"Unknown edge protocol: {protocol}")
+    try:
+        from torch_geometric.utils import coalesce, to_undirected
+    except ImportError as exc:
+        raise RuntimeError("Edge protocols require torch-geometric") from exc
+
+    edge_index = edge_index.long()
+    if protocol == "undirected":
+        return to_undirected(edge_index, num_nodes=num_nodes, reduce="add")
+    if protocol == "target_to_source":
+        edge_index = edge_index.flip(0)
+    return coalesce(edge_index, num_nodes=num_nodes)
 
 
 def validation_fingerprint(report: dict[str, object]) -> str:

@@ -125,7 +125,7 @@ The server is currently heavily occupied, so start with a small CPU or selected-
 Use CPU:
 
 ```bash
-python run_synthetic.py --graph-type heterophily --model reliability_gt \
+python scripts/legacy_synthetic/run_synthetic.py --graph-type heterophily --model reliability_gt \
   --num-nodes 180 --epochs 3 --patience 3 --seeds 0 \
   --hidden-dim 32 --num-heads 4 --device cpu
 ```
@@ -133,7 +133,7 @@ python run_synthetic.py --graph-type heterophily --model reliability_gt \
 Use one visible GPU:
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 python run_synthetic.py --graph-type heterophily --model reliability_gt \
+CUDA_VISIBLE_DEVICES=0 python scripts/legacy_synthetic/run_synthetic.py --graph-type heterophily --model reliability_gt \
   --num-nodes 900 --epochs 300 --seeds 0 1 2 \
   --hidden-dim 64 --num-heads 4 --device cuda
 ```
@@ -152,7 +152,7 @@ Example:
 
 ```bash
 watch -n 2 nvidia-smi
-CUDA_VISIBLE_DEVICES=0 python run_synthetic.py --graph-type heterophily --model reliability_gt --device cuda
+CUDA_VISIBLE_DEVICES=0 python scripts/legacy_synthetic/run_synthetic.py --graph-type heterophily --model reliability_gt --device cuda
 ```
 
 ## 10. Recommended Version Matrix

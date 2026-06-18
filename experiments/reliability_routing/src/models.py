@@ -56,6 +56,32 @@ class GCN(nn.Module):
         return self.conv2(h, adj)
 
 
+class PyGGCN(nn.Module):
+    def __init__(self, in_dim: int, hidden_dim: int, out_dim: int, dropout: float = 0.5):
+        super().__init__()
+        try:
+            from torch_geometric.nn import GCNConv
+        except ImportError as exc:
+            raise RuntimeError(
+                "gcn_pyg requires torch-geometric. Install the real-data dependencies first."
+            ) from exc
+        self.conv1 = GCNConv(in_dim, hidden_dim, cached=True, normalize=True)
+        self.conv2 = GCNConv(hidden_dim, out_dim, cached=True, normalize=True)
+        self.dropout = dropout
+
+    def forward(
+        self,
+        x: torch.Tensor,
+        edge_index: torch.Tensor,
+        reliability: torch.Tensor | None = None,
+        reliability_qk: torch.Tensor | None = None,
+    ) -> torch.Tensor:
+        x = F.dropout(x, p=self.dropout, training=self.training)
+        x = F.relu(self.conv1(x, edge_index))
+        x = F.dropout(x, p=self.dropout, training=self.training)
+        return self.conv2(x, edge_index)
+
+
 class LinearAttention(nn.Module):
     def __init__(self, hidden_dim: int, num_heads: int = 4, dropout: float = 0.1):
         super().__init__()
@@ -154,6 +180,7 @@ class LinearGTLayer(nn.Module):
         self.fixed_qk_strength = fixed_qk_strength
         self.reliability_encoder_mode = reliability_encoder_mode
         self.latest_qk_stats: dict[str, float] | None = None
+        self.latest_branch_stats: dict[str, float] | None = None
 
         self.local = GCNLayer(hidden_dim, hidden_dim, dropout)
         self.global_attn = LinearAttention(hidden_dim, num_heads=num_heads, dropout=dropout)
@@ -260,6 +287,12 @@ class LinearGTLayer(nn.Module):
         else:
             mixed = self.fixed_local_weight * local_h + (1.0 - self.fixed_local_weight) * global_h
 
+        self.latest_branch_stats = collect_branch_stats(
+            local_h,
+            global_h,
+            mixed,
+            gate_value,
+        )
         x = self.norm1(x + self.dropout(mixed))
         x = self.norm2(x + self.dropout(self.ffn(x)))
         return x, gate_value
@@ -281,6 +314,7 @@ class LinearGT(nn.Module):
         qk_strength_init: float = -5.0,
         fixed_qk_strength: float | None = None,
         reliability_encoder_mode: str = "separate",
+        fixed_local_weight: float = 0.5,
     ):
         super().__init__()
         self.input_proj = nn.Linear(in_dim, hidden_dim)
@@ -298,6 +332,7 @@ class LinearGT(nn.Module):
                     qk_strength_init=qk_strength_init,
                     fixed_qk_strength=fixed_qk_strength,
                     reliability_encoder_mode=reliability_encoder_mode,
+                    fixed_local_weight=fixed_local_weight,
                 )
                 for _ in range(num_layers)
             ]
@@ -307,6 +342,7 @@ class LinearGT(nn.Module):
         self.latest_gate: torch.Tensor | None = None
         self.latest_gates_by_layer: list[torch.Tensor] = []
         self.latest_qk_stats_by_layer: list[dict[str, float]] = []
+        self.latest_branch_stats_by_layer: list[dict[str, float]] = []
 
     def forward(
         self,
@@ -320,6 +356,7 @@ class LinearGT(nn.Module):
         gates = []
         self.latest_gates_by_layer = []
         self.latest_qk_stats_by_layer = []
+        self.latest_branch_stats_by_layer = []
         for layer in self.layers:
             h, gate = layer(h, adj, reliability, reliability_qk)
             if layer.latest_qk_stats is not None:
@@ -328,6 +365,8 @@ class LinearGT(nn.Module):
                 detached_gate = gate.detach()
                 gates.append(detached_gate)
                 self.latest_gates_by_layer.append(detached_gate)
+            if layer.latest_branch_stats is not None:
+                self.latest_branch_stats_by_layer.append(layer.latest_branch_stats)
         self.latest_gate = torch.stack(gates).mean(dim=0) if gates else None
         return self.out(h)
 
@@ -349,6 +388,23 @@ class LinearGT(nn.Module):
             for key in keys
         }
 
+    def branch_stats(self) -> dict[str, float]:
+        if not self.latest_branch_stats_by_layer:
+            return {}
+        output = {}
+        keys = self.latest_branch_stats_by_layer[0].keys()
+        for key in keys:
+            values = [
+                stats[key]
+                for stats in self.latest_branch_stats_by_layer
+                if not torch.isnan(torch.tensor(stats[key]))
+            ]
+            output[key] = float(torch.tensor(values).mean()) if values else float("nan")
+        for index, stats in enumerate(self.latest_branch_stats_by_layer, start=1):
+            for key, value in stats.items():
+                output[f"{key}_layer{index}"] = value
+        return output
+
 
 def collect_gamma_stats(
     gamma_q: torch.Tensor | None,
@@ -362,6 +418,40 @@ def collect_gamma_stats(
         "qk_gamma_q_abs_dev_max": gamma_abs_dev_max(gamma_q),
         "qk_gamma_k_abs_dev_max": gamma_abs_dev_max(gamma_k),
     }
+
+
+def collect_branch_stats(
+    local_h: torch.Tensor,
+    global_h: torch.Tensor,
+    mixed_h: torch.Tensor,
+    gate: torch.Tensor | None,
+) -> dict[str, float]:
+    local = local_h.detach()
+    global_ = global_h.detach()
+    mixed = mixed_h.detach()
+    stats = {
+        "local_branch_norm_mean": float(local.norm(dim=-1).mean().cpu()),
+        "global_branch_norm_mean": float(global_.norm(dim=-1).mean().cpu()),
+        "mixed_branch_norm_mean": float(mixed.norm(dim=-1).mean().cpu()),
+        "local_global_cosine_mean": float(
+            F.cosine_similarity(local, global_, dim=-1).mean().cpu()
+        ),
+        "gate_mean": float("nan"),
+        "gate_std": float("nan"),
+        "gate_min": float("nan"),
+        "gate_max": float("nan"),
+    }
+    if gate is not None:
+        detached_gate = gate.detach()
+        stats.update(
+            {
+                "gate_mean": float(detached_gate.mean().cpu()),
+                "gate_std": float(detached_gate.std(unbiased=False).cpu()),
+                "gate_min": float(detached_gate.min().cpu()),
+                "gate_max": float(detached_gate.max().cpu()),
+            }
+        )
+    return stats
 
 
 def gamma_abs_dev_mean(gamma: torch.Tensor | None) -> float:
@@ -399,6 +489,22 @@ def build_model(
         return MLP(in_dim, hidden_dim, out_dim, dropout)
     if name == "gcn":
         return GCN(in_dim, hidden_dim, out_dim, dropout)
+    if name == "gcn_pyg":
+        return PyGGCN(in_dim, hidden_dim, out_dim, dropout)
+    if name == "local_only_gt":
+        return LinearGT(
+            in_dim,
+            reliability_dim,
+            qk_reliability_dim,
+            hidden_dim,
+            out_dim,
+            num_layers,
+            num_heads,
+            dropout,
+            use_reliability=False,
+            use_gate=False,
+            fixed_local_weight=1.0,
+        )
     if name == "linear_gt":
         return LinearGT(
             in_dim,

@@ -64,7 +64,7 @@ $env:KMP_DUPLICATE_LIB_OK="TRUE"
 先跑一个小图，确认代码能启动：
 
 ```powershell
-python run_synthetic.py --graph-type heterophily --model reliability_gt --num-nodes 180 --epochs 3 --patience 3 --seeds 0 --hidden-dim 32 --num-heads 4
+python scripts/legacy_synthetic/run_synthetic.py --graph-type heterophily --model reliability_gt --num-nodes 180 --epochs 3 --patience 3 --seeds 0 --hidden-dim 32 --num-heads 4
 ```
 
 如果输出类似下面这样，就说明环境和代码都能正常工作：
@@ -81,30 +81,30 @@ saved: outputs\heterophily_reliability_gt.csv
 异配图上比较四个模型：
 
 ```powershell
-python run_synthetic.py --graph-type heterophily --model mlp
-python run_synthetic.py --graph-type heterophily --model gcn
-python run_synthetic.py --graph-type heterophily --model linear_gt
-python run_synthetic.py --graph-type heterophily --model qk_gt
-python run_synthetic.py --graph-type heterophily --model gate_gt
-python run_synthetic.py --graph-type heterophily --model reliability_gt
+python scripts/legacy_synthetic/run_synthetic.py --graph-type heterophily --model mlp
+python scripts/legacy_synthetic/run_synthetic.py --graph-type heterophily --model gcn
+python scripts/legacy_synthetic/run_synthetic.py --graph-type heterophily --model linear_gt
+python scripts/legacy_synthetic/run_synthetic.py --graph-type heterophily --model qk_gt
+python scripts/legacy_synthetic/run_synthetic.py --graph-type heterophily --model gate_gt
+python scripts/legacy_synthetic/run_synthetic.py --graph-type heterophily --model reliability_gt
 ```
 
 同配图上比较四个模型：
 
 ```powershell
-python run_synthetic.py --graph-type homophily --model mlp
-python run_synthetic.py --graph-type homophily --model gcn
-python run_synthetic.py --graph-type homophily --model linear_gt
-python run_synthetic.py --graph-type homophily --model reliability_gt
+python scripts/legacy_synthetic/run_synthetic.py --graph-type homophily --model mlp
+python scripts/legacy_synthetic/run_synthetic.py --graph-type homophily --model gcn
+python scripts/legacy_synthetic/run_synthetic.py --graph-type homophily --model linear_gt
+python scripts/legacy_synthetic/run_synthetic.py --graph-type homophily --model reliability_gt
 ```
 
 噪声图上比较四个模型：
 
 ```powershell
-python run_synthetic.py --graph-type noisy --model mlp
-python run_synthetic.py --graph-type noisy --model gcn
-python run_synthetic.py --graph-type noisy --model linear_gt
-python run_synthetic.py --graph-type noisy --model reliability_gt
+python scripts/legacy_synthetic/run_synthetic.py --graph-type noisy --model mlp
+python scripts/legacy_synthetic/run_synthetic.py --graph-type noisy --model gcn
+python scripts/legacy_synthetic/run_synthetic.py --graph-type noisy --model linear_gt
+python scripts/legacy_synthetic/run_synthetic.py --graph-type noisy --model reliability_gt
 ```
 
 ## 7. 使用 GPU
@@ -112,7 +112,7 @@ python run_synthetic.py --graph-type noisy --model reliability_gt
 如果 PyTorch 能检测到 CUDA，可以加：
 
 ```powershell
-python run_synthetic.py --graph-type heterophily --model reliability_gt --device cuda
+python scripts/legacy_synthetic/run_synthetic.py --graph-type heterophily --model reliability_gt --device cuda
 ```
 
 检查 CUDA 是否可用：

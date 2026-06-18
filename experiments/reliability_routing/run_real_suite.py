@@ -14,7 +14,16 @@ from pathlib import Path
 from src.real_data import REAL_DATASETS
 
 
-MODELS = ("mlp", "gcn", "linear_gt", "qk_gt", "gate_gt", "reliability_gt")
+MODELS = (
+    "mlp",
+    "gcn",
+    "gcn_pyg",
+    "local_only_gt",
+    "linear_gt",
+    "qk_gt",
+    "gate_gt",
+    "reliability_gt",
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -22,6 +31,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--python", default=sys.executable)
     parser.add_argument("--datasets", nargs="+", choices=REAL_DATASETS, default=list(REAL_DATASETS))
     parser.add_argument("--models", nargs="+", choices=MODELS, default=list(MODELS))
+    parser.add_argument(
+        "--training-profile",
+        choices=["standard", "classic_gcn"],
+        default="standard",
+    )
     parser.add_argument("--runs", type=int, default=10)
     parser.add_argument("--data-root", type=Path, default=Path("data"))
     parser.add_argument("--out-dir", type=Path, default=Path("outputs/real_suite"))
@@ -46,6 +60,10 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    if args.training_profile == "classic_gcn" and args.models != ["gcn_pyg"]:
+        raise SystemExit(
+            "--training-profile classic_gcn requires exactly: --models gcn_pyg"
+        )
     root = Path(__file__).resolve().parent
     data_root = resolve(root, args.data_root)
     out_dir = resolve(root, args.out_dir)
@@ -88,6 +106,7 @@ def suite_config(args: argparse.Namespace, root: Path) -> dict[str, object]:
         "code_fingerprint": digest.hexdigest(),
         "datasets": list(args.datasets),
         "models": list(args.models),
+        "training_profile": args.training_profile,
         "runs": args.runs,
         "normalize_features": args.normalize_features,
         "rw_steps": args.rw_steps,
@@ -158,6 +177,8 @@ def run_experiments(
             if not args.force and result_complete(result_path, args.runs):
                 print(f"[{step}/{total}] skip {dataset}/{model}", flush=True)
                 continue
+            if args.force and result_path.exists():
+                result_path.unlink()
             command = [
                 args.python,
                 str(root / "run_real.py"),
@@ -167,6 +188,8 @@ def run_experiments(
                 model,
                 "--runs",
                 str(args.runs),
+                "--training-profile",
+                args.training_profile,
                 "--data-root",
                 str(data_root),
                 "--out-dir",
@@ -214,9 +237,39 @@ def analyze(args: argparse.Namespace, out_dir: Path) -> Path:
             rows.extend(read_csv(out_dir / f"{dataset}_{model}.csv"))
 
     summary = summarize(rows)
+    diagnostics = summarize_diagnostics(rows)
     comparisons = compare_models(rows, args.datasets)
     write_csv(out_dir / "summary.csv", summary)
-    write_csv(out_dir / "paired_comparisons.csv", comparisons)
+    write_csv(
+        out_dir / "diagnostics_summary.csv",
+        diagnostics,
+        fieldnames=[
+            "dataset",
+            "model",
+            "gate_mean",
+            "gate_std",
+            "local_branch_norm_mean",
+            "global_branch_norm_mean",
+            "mixed_branch_norm_mean",
+            "local_global_cosine_mean",
+        ],
+    )
+    write_csv(
+        out_dir / "paired_comparisons.csv",
+        comparisons,
+        fieldnames=[
+            "dataset",
+            "comparison",
+            "n",
+            "mean_delta",
+            "ci95_low",
+            "ci95_high",
+            "wins",
+            "ties",
+            "losses",
+            "pvalue",
+        ],
+    )
 
     lines = [
         "# Real Dataset Preliminary Analysis",
@@ -256,6 +309,23 @@ def analyze(args: argparse.Namespace, out_dir: Path) -> Path:
     lines.extend(
         [
             "",
+            "## Routing Diagnostics",
+            "",
+            "| Dataset | Model | Gate mean | Gate std | Local norm | Global norm | Mixed norm | Local/global cosine |",
+            "|---|---|---:|---:|---:|---:|---:|---:|",
+        ]
+    )
+    for row in diagnostics:
+        lines.append(
+            f"| {row['dataset']} | {row['model']} | {fmt_plain(row['gate_mean'])} | "
+            f"{fmt_plain(row['gate_std'])} | {fmt_plain(row['local_branch_norm_mean'])} | "
+            f"{fmt_plain(row['global_branch_norm_mean'])} | "
+            f"{fmt_plain(row['mixed_branch_norm_mean'])} | "
+            f"{fmt_plain(row['local_global_cosine_mean'])} |"
+        )
+    lines.extend(
+        [
+            "",
             "## Decision Rule",
             "",
             "- If Reliability-GT consistently exceeds Gate-GT, Q/K remains a candidate contribution.",
@@ -287,11 +357,50 @@ def summarize(rows: list[dict[str, str]]) -> list[dict[str, object]]:
     ]
 
 
+def summarize_diagnostics(rows: list[dict[str, str]]) -> list[dict[str, object]]:
+    metrics = (
+        "gate_mean",
+        "gate_std",
+        "local_branch_norm_mean",
+        "global_branch_norm_mean",
+        "mixed_branch_norm_mean",
+        "local_global_cosine_mean",
+    )
+    groups: dict[tuple[str, str], list[dict[str, str]]] = {}
+    for row in rows:
+        groups.setdefault((row["dataset"], row["model"]), []).append(row)
+
+    output = []
+    for (dataset, model), group in sorted(groups.items()):
+        values = {
+            metric: finite_mean(row.get(metric, "") for row in group)
+            for metric in metrics
+        }
+        if all(math.isnan(value) for value in values.values()):
+            continue
+        output.append({"dataset": dataset, "model": model, **values})
+    return output
+
+
+def finite_mean(values) -> float:
+    numbers = []
+    for value in values:
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(number):
+            numbers.append(number)
+    return statistics.mean(numbers) if numbers else math.nan
+
+
 def compare_models(
     rows: list[dict[str, str]],
     datasets: list[str],
 ) -> list[dict[str, object]]:
     pairs = (
+        ("gcn_pyg", "gcn", "PyG-GCN - custom GCN"),
+        ("local_only_gt", "gcn_pyg", "Local-only GT - PyG-GCN"),
         ("qk_gt", "linear_gt", "QK-GT - LinearGT"),
         ("gate_gt", "linear_gt", "Gate-GT - LinearGT"),
         ("reliability_gt", "linear_gt", "Reliability-GT - LinearGT"),
@@ -300,6 +409,11 @@ def compare_models(
     output = []
     for dataset in datasets:
         for left, right, label in pairs:
+            available = {
+                row["model"] for row in rows if row["dataset"] == dataset
+            }
+            if left not in available or right not in available:
+                continue
             output.append(
                 {
                     "dataset": dataset,
@@ -319,6 +433,17 @@ def paired_stats(
     left = keyed_values(rows, dataset, left_model)
     right = keyed_values(rows, dataset, right_model)
     keys = sorted(set(left).intersection(right))
+    if not keys:
+        return {
+            "n": 0,
+            "mean_delta": math.nan,
+            "ci95_low": math.nan,
+            "ci95_high": math.nan,
+            "wins": 0,
+            "ties": 0,
+            "losses": 0,
+            "pvalue": math.nan,
+        }
     differences = [left[key] - right[key] for key in keys]
     mean_delta = statistics.mean(differences)
     ci_half = ci95(differences)
@@ -374,14 +499,27 @@ def fmt(value: object) -> str:
     return "n/a" if math.isnan(number) else f"{number:+.4f}"
 
 
+def fmt_plain(value: object) -> str:
+    number = float(value)
+    return "n/a" if math.isnan(number) else f"{number:.4f}"
+
+
 def read_csv(path: Path) -> list[dict[str, str]]:
     with path.open(newline="", encoding="utf-8") as handle:
         return list(csv.DictReader(handle))
 
 
-def write_csv(path: Path, rows: list[dict[str, object]]) -> None:
+def write_csv(
+    path: Path,
+    rows: list[dict[str, object]],
+    fieldnames: list[str] | None = None,
+) -> None:
     with path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=list(rows[0].keys()))
+        if fieldnames is None:
+            if not rows:
+                raise ValueError(f"Cannot infer CSV columns for empty rows: {path}")
+            fieldnames = list(rows[0].keys())
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
 

@@ -1,0 +1,78 @@
+[
+  {
+    "dataset": "Cora",
+    "status": "valid",
+    "source": "PyG Planetoid",
+    "source_url": "https://github.com/kimiyoung/planetoid",
+    "expected": {
+      "num_nodes": 2708,
+      "num_edges": 10556,
+      "num_features": 1433,
+      "num_classes": 7,
+      "num_splits": 1,
+      "source": "PyG Planetoid",
+      "source_url": "https://github.com/kimiyoung/planetoid"
+    },
+    "actual": {
+      "num_nodes": 2708,
+      "num_edges": 10556,
+      "num_features": 1433,
+      "num_classes": 7,
+      "num_splits": 1
+    },
+    "splits": {
+      "count": 1,
+      "sizes": [
+        {
+          "split": 0,
+          "train": 140,
+          "val": 500,
+          "test": 1000
+        }
+      ]
+    },
+    "raw_files": [
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/Cora/raw/ind.cora.x",
+        "size_bytes": 22119,
+        "sha256": "23cfa55d91c6f624233f5eb7b6e3f141f1bd2b2ae39608a63cf5d084bb27baab"
+      },
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/Cora/raw/ind.cora.tx",
+        "size_bytes": 148025,
+        "sha256": "b9afbaa4a400df991f6f02ef677e1e44da55ffc04801fd02f9e673987829226a"
+      },
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/Cora/raw/ind.cora.allx",
+        "size_bytes": 257305,
+        "sha256": "9419ba2f26f5c35243db64aba110e0f35a04851609e0dc5433450676ca6b8543"
+      },
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/Cora/raw/ind.cora.y",
+        "size_bytes": 4054,
+        "sha256": "94465c14eb53e04ca262198dcbb2521ee8af60fb3f3d546cd6ca24a511b0e7d1"
+      },
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/Cora/raw/ind.cora.ty",
+        "size_bytes": 28135,
+        "sha256": "41f5ac76596a1699cc33f53084a2419e92961c42bb75f36fc38e616d348532ad"
+      },
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/Cora/raw/ind.cora.ally",
+        "size_bytes": 47959,
+        "sha256": "2b998f5cc7fedc86e7f97ca2498f47a1ffc1462c29e2d578b23bf3f62b6e7d71"
+      },
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/Cora/raw/ind.cora.graph",
+        "size_bytes": 59847,
+        "sha256": "58f13302f39dde8852dad6fe6d15b89b077b6d7f837626bce671ef80344b383d"
+      },
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/Cora/raw/ind.cora.test.index",
+        "size_bytes": 5000,
+        "sha256": "297ce89af2b51a6a194181c7dbe1796c6a1cf9cd9349a88383b1b1e227867875"
+      }
+    ],
+    "errors": []
+  }
+]

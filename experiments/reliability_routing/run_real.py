@@ -9,8 +9,8 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from run_synthetic import collect_diagnostics, move_data
 from src.data import RELIABILITY_COMPONENTS, select_reliability_components, set_seed
+from src.diagnostics import collect_diagnostics, move_data
 from src.models import build_model
 from src.real_data import (
     REAL_DATASETS,
@@ -22,13 +22,27 @@ from src.real_data import (
 )
 
 
-REAL_MODELS = ("mlp", "gcn", "linear_gt", "qk_gt", "gate_gt", "reliability_gt")
+REAL_MODELS = (
+    "mlp",
+    "gcn",
+    "gcn_pyg",
+    "local_only_gt",
+    "linear_gt",
+    "qk_gt",
+    "gate_gt",
+    "reliability_gt",
+)
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", choices=REAL_DATASETS, required=True)
     parser.add_argument("--model", choices=REAL_MODELS, required=True)
+    parser.add_argument(
+        "--training-profile",
+        choices=["standard", "classic_gcn"],
+        default="standard",
+    )
     parser.add_argument("--runs", type=int, default=10)
     parser.add_argument("--data-root", type=Path, default=Path("data"))
     parser.add_argument("--out-dir", type=Path, default=Path("outputs/real"))
@@ -138,32 +152,31 @@ def train_one_real(
 ) -> dict[str, float | str | int]:
     set_seed(seed)
     data = move_data(base_data, device)
+    config = resolve_training_config(args)
     model = build_model(
         name=args.model,
         in_dim=data.x.size(1),
         reliability_dim=data.reliability_gate.size(1),
         qk_reliability_dim=data.reliability_qk.size(1),
-        hidden_dim=args.hidden_dim,
+        hidden_dim=config["hidden_dim"],
         out_dim=int(data.y.max().item()) + 1,
         num_layers=args.num_layers,
         num_heads=args.num_heads,
-        dropout=args.dropout,
+        dropout=config["dropout"],
         qk_strength_init=args.qk_strength_init,
         fixed_qk_strength=args.fixed_qk_strength,
     ).to(device)
-    optimizer = torch.optim.AdamW(
-        model.parameters(),
-        lr=args.lr,
-        weight_decay=args.weight_decay,
-    )
+    optimizer = build_optimizer(model, config)
 
     best_val = -1.0
     best_test = 0.0
     best_epoch = -1
+    best_val_loss = float("inf")
     best_diagnostics = collect_diagnostics(model, data)
     stale = 0
+    val_loss_history = []
     start = time.time()
-    for epoch in range(args.epochs):
+    for epoch in range(config["epochs"]):
         model.train()
         optimizer.zero_grad()
         logits = model(
@@ -186,15 +199,25 @@ def train_one_real(
             )
             val_acc = accuracy(logits, data.y, data.val_mask)
             test_acc = accuracy(logits, data.y, data.test_mask)
-        if val_acc > best_val:
+            val_loss = float(
+                F.cross_entropy(logits[data.val_mask], data.y[data.val_mask]).cpu()
+            )
+        val_loss_history.append(val_loss)
+        improved = (
+            val_loss < best_val_loss
+            if config["selection_metric"] == "val_loss"
+            else val_acc > best_val
+        )
+        if improved:
             best_val = val_acc
+            best_val_loss = val_loss
             best_test = test_acc
             best_epoch = epoch
             best_diagnostics = collect_diagnostics(model, data)
             stale = 0
         else:
             stale += 1
-        if stale >= args.patience:
+        if should_stop(config, stale, val_loss_history):
             break
 
     row = {
@@ -205,6 +228,7 @@ def train_one_real(
         "seed": seed,
         "best_epoch": best_epoch,
         "best_val_acc": best_val,
+        "best_val_loss": best_val_loss,
         "test_acc_at_best_val": best_test,
         "reliability_components": ",".join(args.reliability_components),
         "normalize_features": args.normalize_features,
@@ -217,9 +241,91 @@ def train_one_real(
             else float("nan")
         ),
         "elapsed_sec": time.time() - start,
+        "training_profile": args.training_profile,
+        "optimizer": config["optimizer"],
+        "effective_hidden_dim": config["hidden_dim"],
+        "effective_dropout": config["dropout"],
+        "effective_lr": config["lr"],
+        "effective_weight_decay": config["weight_decay"],
+        "effective_epochs": config["epochs"],
+        "effective_patience": config["patience"],
+        "selection_metric": config["selection_metric"],
+        "early_stopping_rule": config["early_stopping_rule"],
     }
     row.update(best_diagnostics)
     return row
+
+
+def resolve_training_config(args: argparse.Namespace) -> dict[str, object]:
+    if args.training_profile == "classic_gcn":
+        if args.model != "gcn_pyg":
+            raise ValueError(
+                "--training-profile classic_gcn is only valid with --model gcn_pyg"
+            )
+        return {
+            "hidden_dim": 16,
+            "dropout": 0.5,
+            "lr": 0.01,
+            "weight_decay": 5e-4,
+            "epochs": 200,
+            "patience": 10,
+            "optimizer": "adam_first_layer_l2",
+            "selection_metric": "val_loss",
+            "early_stopping_rule": "rolling_val_loss",
+        }
+    return {
+        "hidden_dim": args.hidden_dim,
+        "dropout": args.dropout,
+        "lr": args.lr,
+        "weight_decay": args.weight_decay,
+        "epochs": args.epochs,
+        "patience": args.patience,
+        "optimizer": "adamw",
+        "selection_metric": "val_acc",
+        "early_stopping_rule": "patience",
+    }
+
+
+def build_optimizer(
+    model: torch.nn.Module,
+    config: dict[str, object],
+) -> torch.optim.Optimizer:
+    if config["optimizer"] == "adam_first_layer_l2":
+        first_layer_weight = model.conv1.lin.weight
+        remaining = [
+            parameter
+            for parameter in model.parameters()
+            if parameter is not first_layer_weight
+        ]
+        return torch.optim.Adam(
+            [
+                {
+                    "params": [first_layer_weight],
+                    "weight_decay": config["weight_decay"],
+                },
+                {"params": remaining, "weight_decay": 0.0},
+            ],
+            lr=config["lr"],
+        )
+    return torch.optim.AdamW(
+        model.parameters(),
+        lr=config["lr"],
+        weight_decay=config["weight_decay"],
+    )
+
+
+def should_stop(
+    config: dict[str, object],
+    stale: int,
+    val_loss_history: list[float],
+) -> bool:
+    patience = int(config["patience"])
+    if config["early_stopping_rule"] == "rolling_val_loss":
+        if len(val_loss_history) <= patience:
+            return False
+        previous = val_loss_history[-(patience + 1) : -1]
+        return val_loss_history[-1] > float(np.mean(previous))
+    return stale >= patience
 
 
 def accuracy(logits: torch.Tensor, y: torch.Tensor, mask: torch.Tensor) -> float:
