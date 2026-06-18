@@ -22,15 +22,16 @@ class DatasetExpectation:
     num_classes: int
     num_splits: int
     source: str
+    source_url: str
 
 
 EXPECTED_DATASETS = {
-    "Cora": DatasetExpectation(2708, 10556, 1433, 7, 1, "PyG Planetoid"),
-    "Citeseer": DatasetExpectation(3327, 9104, 3703, 6, 1, "PyG Planetoid"),
-    "Pubmed": DatasetExpectation(19717, 88648, 500, 3, 1, "PyG Planetoid"),
-    "Chameleon": DatasetExpectation(2277, 36101, 2325, 5, 10, "PyG WikipediaNetwork Geom-GCN"),
-    "Squirrel": DatasetExpectation(5201, 217073, 2089, 5, 10, "PyG WikipediaNetwork Geom-GCN"),
-    "Actor": DatasetExpectation(7600, 30019, 932, 5, 10, "PyG Actor/Geom-GCN"),
+    "Cora": DatasetExpectation(2708, 10556, 1433, 7, 1, "PyG Planetoid", "https://github.com/kimiyoung/planetoid"),
+    "Citeseer": DatasetExpectation(3327, 9104, 3703, 6, 1, "PyG Planetoid", "https://github.com/kimiyoung/planetoid"),
+    "Pubmed": DatasetExpectation(19717, 88648, 500, 3, 1, "PyG Planetoid", "https://github.com/kimiyoung/planetoid"),
+    "Chameleon": DatasetExpectation(2277, 36101, 2325, 5, 10, "PyG WikipediaNetwork Geom-GCN", "https://github.com/graphdml-uiuc-jlu/geom-gcn"),
+    "Squirrel": DatasetExpectation(5201, 217073, 2089, 5, 10, "PyG WikipediaNetwork Geom-GCN", "https://github.com/graphdml-uiuc-jlu/geom-gcn"),
+    "Actor": DatasetExpectation(7600, 30019, 932, 5, 10, "PyG Actor/Geom-GCN", "https://github.com/graphdml-uiuc-jlu/geom-gcn"),
 }
 
 
@@ -68,7 +69,7 @@ def load_pyg_dataset(name: str, root: Path, allow_download: bool) -> object:
         )
 
     if name in {"Cora", "Citeseer", "Pubmed"}:
-        pyg_name = {"Cora": "Cora", "Citeseer": "CiteSeer", "Pubmed": "PubMed"}[name]
+        pyg_name = existing_planetoid_name(name, root)
         return Planetoid(root=str(root), name=pyg_name, split="public")
     if name in {"Chameleon", "Squirrel"}:
         return WikipediaNetwork(
@@ -77,6 +78,18 @@ def load_pyg_dataset(name: str, root: Path, allow_download: bool) -> object:
             geom_gcn_preprocess=True,
         )
     return Actor(root=str(root / "Actor"))
+
+
+def existing_planetoid_name(name: str, root: Path) -> str:
+    aliases = {
+        "Cora": ("Cora",),
+        "Citeseer": ("Citeseer", "CiteSeer"),
+        "Pubmed": ("Pubmed", "PubMed"),
+    }
+    for candidate in aliases[name]:
+        if (root / candidate).exists():
+            return candidate
+    return name
 
 
 def dataset_has_local_files(name: str, root: Path) -> bool:
@@ -135,6 +148,7 @@ def validate_pyg_data(name: str, dataset: object, data: object) -> dict[str, obj
         "dataset": name,
         "status": "valid" if not errors else "invalid",
         "source": expected.source,
+        "source_url": expected.source_url,
         "expected": asdict(expected),
         "actual": actual,
         "splits": split_report,
@@ -213,19 +227,32 @@ def prepare_graph_data(
     rw_samples: int,
     rw_seed: int,
     normalize_features: bool = True,
+    cache_path: Path | None = None,
+    cache_key: str | None = None,
 ) -> GraphData:
     x = pyg_data.x.float()
     if normalize_features:
         x = row_normalize_features(x)
     y = pyg_data.y.long()
     edge_index = pyg_data.edge_index.long()
-    reliability_gate, reliability_qk, local_similarity = compute_real_reliability(
-        x,
-        edge_index,
-        rw_steps=rw_steps,
-        rw_samples=rw_samples,
-        rw_seed=rw_seed,
-    )
+    cached = load_reliability_cache(cache_path, cache_key)
+    if cached is None:
+        reliability_gate, reliability_qk, local_similarity = compute_real_reliability(
+            x,
+            edge_index,
+            rw_steps=rw_steps,
+            rw_samples=rw_samples,
+            rw_seed=rw_seed,
+        )
+        save_reliability_cache(
+            cache_path,
+            cache_key,
+            reliability_gate,
+            reliability_qk,
+            local_similarity,
+        )
+    else:
+        reliability_gate, reliability_qk, local_similarity = cached
     return GraphData(
         x=x,
         y=y,
@@ -239,6 +266,51 @@ def prepare_graph_data(
         val_mask=select_mask(pyg_data.val_mask, split).clone(),
         test_mask=select_mask(pyg_data.test_mask, split).clone(),
         local_similarity=local_similarity,
+    )
+
+
+def validation_fingerprint(report: dict[str, object]) -> str:
+    digest = hashlib.sha256()
+    digest.update(json.dumps(report["actual"], sort_keys=True).encode("utf-8"))
+    for item in report["raw_files"]:
+        digest.update(str(item["sha256"]).encode("ascii"))
+    return digest.hexdigest()
+
+
+def load_reliability_cache(
+    cache_path: Path | None,
+    cache_key: str | None,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor] | None:
+    if cache_path is None or cache_key is None or not cache_path.exists():
+        return None
+    payload = torch.load(cache_path, map_location="cpu", weights_only=False)
+    if payload.get("cache_key") != cache_key:
+        return None
+    return (
+        payload["reliability_gate"],
+        payload["reliability_qk"],
+        payload["local_similarity"],
+    )
+
+
+def save_reliability_cache(
+    cache_path: Path | None,
+    cache_key: str | None,
+    reliability_gate: torch.Tensor,
+    reliability_qk: torch.Tensor,
+    local_similarity: torch.Tensor,
+) -> None:
+    if cache_path is None or cache_key is None:
+        return
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    torch.save(
+        {
+            "cache_key": cache_key,
+            "reliability_gate": reliability_gate,
+            "reliability_qk": reliability_qk,
+            "local_similarity": local_similarity,
+        },
+        cache_path,
     )
 
 

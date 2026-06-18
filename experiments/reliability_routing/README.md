@@ -174,3 +174,52 @@ gamma = 1 + sigmoid(strength) * 0.5 * tanh(delta)
 - Roman-empire / Amazon-ratings / Minesweeper / Tolokers / Questions
 
 真实数据集建议第二步接入 PyTorch Geometric 或直接复用 SGFormer / Polynormer 的数据管线。
+
+## Confirmatory synthetic finalists
+
+冻结模型结构后，运行预注册的六个 finalist 对照：
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python run_synthetic_finalists.py \
+  --seeds 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 \
+  --device cuda
+```
+
+默认候选：
+
+- heterophily: `gate_gt only local_similarity`, `reliability_gt without neighbor_variance`
+- homophily: `gate_gt only RWSE`, `reliability_gt only local_similarity`
+- noisy: `gate_gt only degree`, `reliability_gt only RWSE`
+
+脚本会将每个候选与同模型 full reliability 进行同 seed 配对比较。
+
+## Real dataset pipeline
+
+先安装 PyG，然后校验/下载数据：
+
+```bash
+python prepare_real_datasets.py \
+  --datasets Cora Citeseer Pubmed Chameleon Squirrel Actor \
+  --data-root data \
+  --report outputs/real_dataset_validation.json
+```
+
+本地文件不会因为目录存在就被直接信任。校验器会检查标准规模、标签、边索引、
+官方 split、有限值和 raw 文件 SHA-256。缺失数据通过 PyG 官方 dataset loader 下载。
+
+运行第一批真实数据：
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python run_real_suite.py \
+  --datasets Cora Citeseer Pubmed Chameleon Squirrel Actor \
+  --models mlp gcn linear_gt qk_gt gate_gt reliability_gt \
+  --runs 10 \
+  --device cuda
+```
+
+协议：
+
+- Cora/CiteSeer/PubMed 使用 public split，10 runs 对应 10 个训练随机种子。
+- Chameleon/Squirrel/Actor 使用 10 个官方 Geom-GCN splits。
+- 真实图 RWSE 使用固定种子的 Monte Carlo return probability 估计，避免 PubMed 上的 dense adjacency power。
+- 输出位于 `outputs/real_suite/`，包括数据校验、逐模型 CSV、summary、paired comparisons 和初步分析报告。

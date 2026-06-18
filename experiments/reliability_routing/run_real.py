@@ -17,6 +17,7 @@ from src.real_data import (
     load_and_validate_dataset,
     prepare_graph_data,
     select_mask,
+    validation_fingerprint,
     write_validation_report,
 )
 
@@ -78,6 +79,19 @@ def main() -> None:
     )
 
     num_splits = int(validation["actual"]["num_splits"])
+    cache_key = (
+        f"{validation_fingerprint(validation)}:"
+        f"norm={int(args.normalize_features)}:"
+        f"steps={args.rw_steps}:samples={args.rw_samples}:seed={args.rw_seed}"
+    )
+    cache_path = (
+        data_root
+        / "_reliability_cache"
+        / (
+            f"{args.dataset}_norm{int(args.normalize_features)}_"
+            f"rw{args.rw_steps}_samples{args.rw_samples}_seed{args.rw_seed}.pt"
+        )
+    )
     base_data = prepare_graph_data(
         pyg_data,
         split=0,
@@ -85,6 +99,8 @@ def main() -> None:
         rw_samples=args.rw_samples,
         rw_seed=args.rw_seed,
         normalize_features=args.normalize_features,
+        cache_path=cache_path,
+        cache_key=cache_key,
     )
     base_data = select_reliability_components(base_data, args.reliability_components)
     rows = []

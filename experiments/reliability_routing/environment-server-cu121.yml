@@ -16,3 +16,4 @@ dependencies:
   - pip:
       - ogb
       - networkx
+      - torch-geometric>=2.5

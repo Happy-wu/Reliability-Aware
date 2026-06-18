@@ -1,0 +1,7 @@
+graph_type,model,candidate_components,n,full_mean,candidate_mean,mean_delta,ci95_low,ci95_high,wins,ties,losses,paired_t_pvalue,wilcoxon_pvalue
+heterophily,gate_gt,local_similarity,1,0.2222222238779068,0.2222222238779068,0.0,nan,nan,0,1,0,nan,nan
+heterophily,reliability_gt,"degree,local_similarity,rwse",1,0.3888888955116272,0.3888888955116272,0.0,nan,nan,0,1,0,nan,nan
+homophily,gate_gt,rwse,1,0.25,0.2222222238779068,-0.0277777761220932,nan,nan,0,0,1,nan,nan
+homophily,reliability_gt,local_similarity,1,0.4166666567325592,0.4166666567325592,0.0,nan,nan,0,1,0,nan,nan
+noisy,gate_gt,degree,1,0.1944444477558136,0.2222222238779068,0.0277777761220932,nan,nan,1,0,0,nan,nan
+noisy,reliability_gt,rwse,1,0.25,0.2222222238779068,-0.0277777761220932,nan,nan,0,0,1,nan,nan

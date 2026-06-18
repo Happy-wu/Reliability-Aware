@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
+import json
 import math
 import statistics
 from pathlib import Path
@@ -57,6 +59,8 @@ def main() -> None:
     root = Path(__file__).resolve().parent
     out_dir = args.out_dir if args.out_dir.is_absolute() else root / args.out_dir
     out_dir.mkdir(parents=True, exist_ok=True)
+    config = finalist_config(args, root)
+    validate_or_write_config(out_dir, config, args.force)
     raw_path = out_dir / "raw_results.csv"
 
     if raw_path.exists() and not args.force:
@@ -71,6 +75,56 @@ def main() -> None:
     write_csv(out_dir / "paired_comparisons.csv", comparisons)
     write_report(out_dir / "preliminary_analysis.md", comparisons)
     print(f"Finalist analysis: {out_dir / 'preliminary_analysis.md'}")
+
+
+def finalist_config(args: argparse.Namespace, root: Path) -> dict[str, object]:
+    digest = hashlib.sha256()
+    for relative in (
+        "src/data.py",
+        "src/models.py",
+        "run_synthetic.py",
+        "run_synthetic_finalists.py",
+    ):
+        digest.update((root / relative).read_bytes())
+    return {
+        "code_fingerprint": digest.hexdigest(),
+        "finalists": FINALISTS,
+        "seeds": list(args.seeds),
+        "device": args.device,
+        "num_nodes": args.num_nodes,
+        "num_classes": args.num_classes,
+        "feature_dim": args.feature_dim,
+        "feature_noise": args.feature_noise,
+        "edge_noise": args.edge_noise,
+        "rw_steps": args.rw_steps,
+        "hidden_dim": args.hidden_dim,
+        "num_layers": args.num_layers,
+        "num_heads": args.num_heads,
+        "dropout": args.dropout,
+        "qk_strength_init": args.qk_strength_init,
+        "fixed_qk_strength": args.fixed_qk_strength,
+        "lr": args.lr,
+        "weight_decay": args.weight_decay,
+        "epochs": args.epochs,
+        "patience": args.patience,
+    }
+
+
+def validate_or_write_config(
+    out_dir: Path,
+    config: dict[str, object],
+    force: bool,
+) -> None:
+    config = json.loads(json.dumps(config))
+    path = out_dir / "suite_config.json"
+    if path.exists() and not force:
+        existing = json.loads(path.read_text(encoding="utf-8"))
+        if existing != config:
+            raise RuntimeError(
+                "Existing finalist outputs use a different configuration. "
+                "Use a new --out-dir or pass --force."
+            )
+    path.write_text(json.dumps(config, indent=2, ensure_ascii=False), encoding="utf-8")
 
 
 def run_finalists(args: argparse.Namespace, raw_path: Path) -> list[dict]:
@@ -112,18 +166,11 @@ def analyze(rows: list[dict]) -> list[dict[str, object]]:
             differences = [candidate[seed] - full[seed] for seed in seeds]
             mean_delta = statistics.mean(differences)
             ci_half = ci95(differences)
-            try:
-                from scipy.stats import ttest_rel, wilcoxon
-
-                p_t = float(
-                    ttest_rel(
-                        [candidate[seed] for seed in seeds],
-                        [full[seed] for seed in seeds],
-                    ).pvalue
-                )
-                p_w = float(wilcoxon(differences, zero_method="wilcox").pvalue)
-            except ImportError:
-                p_t = p_w = math.nan
+            p_t, p_w = paired_pvalues(
+                [candidate[seed] for seed in seeds],
+                [full[seed] for seed in seeds],
+                differences,
+            )
             wins = sum(value > 0 for value in differences)
             ties = sum(value == 0 for value in differences)
             output.append(
@@ -145,6 +192,28 @@ def analyze(rows: list[dict]) -> list[dict[str, object]]:
                 }
             )
     return output
+
+
+def paired_pvalues(
+    candidate: list[float],
+    full: list[float],
+    differences: list[float],
+) -> tuple[float, float]:
+    if len(differences) < 2:
+        return math.nan, math.nan
+    try:
+        from scipy.stats import ttest_rel, wilcoxon
+
+        p_t = float(ttest_rel(candidate, full).pvalue)
+        nonzero = [value for value in differences if value != 0]
+        p_w = (
+            float(wilcoxon(differences, zero_method="wilcox").pvalue)
+            if nonzero
+            else math.nan
+        )
+        return p_t, p_w
+    except ImportError:
+        return math.nan, math.nan
 
 
 def values(rows: list[dict], graph: str, model: str, variant: str) -> dict[int, float]:
@@ -184,7 +253,8 @@ def write_report(path: Path, rows: list[dict[str, object]]) -> None:
             f"{row['mean_delta']:+.4f} | "
             f"[{row['ci95_low']:+.4f}, {row['ci95_high']:+.4f}] | "
             f"{row['wins']}/{row['ties']}/{row['losses']} | "
-            f"{row['paired_t_pvalue']:.4f} | {row['wilcoxon_pvalue']:.4f} |"
+            f"{format_stat(row['paired_t_pvalue'])} | "
+            f"{format_stat(row['wilcoxon_pvalue'])} |"
         )
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -192,6 +262,11 @@ def write_report(path: Path, rows: list[dict[str, object]]) -> None:
 def read_csv(path: Path) -> list[dict]:
     with path.open(newline="", encoding="utf-8") as handle:
         return list(csv.DictReader(handle))
+
+
+def format_stat(value: object) -> str:
+    number = float(value)
+    return "n/a" if math.isnan(number) else f"{number:.4f}"
 
 
 def write_csv(path: Path, rows: list[dict]) -> None:
