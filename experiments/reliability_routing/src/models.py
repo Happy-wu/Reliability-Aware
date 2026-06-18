@@ -111,6 +111,21 @@ class LinearAttention(nn.Module):
         return self.out_proj(out)
 
 
+class ReliabilityEncoder(nn.Module):
+    def __init__(self, reliability_dim: int, hidden_dim: int, dropout: float = 0.3):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(reliability_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+        )
+
+    def forward(self, reliability: torch.Tensor) -> torch.Tensor:
+        return self.net(reliability)
+
+
 class LinearGTLayer(nn.Module):
     def __init__(
         self,
@@ -125,13 +140,19 @@ class LinearGTLayer(nn.Module):
         fixed_local_weight: float = 0.5,
         qk_strength_init: float = -5.0,
         fixed_qk_strength: float | None = None,
+        reliability_encoder_mode: str = "separate",
     ):
         super().__init__()
+        if reliability_encoder_mode not in {"separate", "branch_specific"}:
+            raise ValueError(
+                "reliability_encoder_mode must be 'separate' or 'branch_specific'"
+            )
         self.use_reliability = use_reliability
         self.use_gate = use_gate
         self.qk_mode = qk_mode
         self.fixed_local_weight = fixed_local_weight
         self.fixed_qk_strength = fixed_qk_strength
+        self.reliability_encoder_mode = reliability_encoder_mode
         self.latest_qk_stats: dict[str, float] | None = None
 
         self.local = GCNLayer(hidden_dim, hidden_dim, dropout)
@@ -146,14 +167,29 @@ class LinearGTLayer(nn.Module):
             nn.Linear(hidden_dim * 2, hidden_dim),
         )
 
+        uses_encoded_reliability = reliability_encoder_mode == "branch_specific"
+        self.qk_reliability_encoder = (
+            ReliabilityEncoder(qk_reliability_dim or reliability_dim, hidden_dim, dropout)
+            if uses_encoded_reliability and use_reliability
+            else None
+        )
+        self.gate_reliability_encoder = (
+            ReliabilityEncoder(reliability_dim, hidden_dim, dropout)
+            if uses_encoded_reliability and use_gate
+            else None
+        )
+
         if use_reliability:
-            self.rel_proj = nn.Sequential(
-                nn.Linear(qk_reliability_dim or reliability_dim, hidden_dim),
-                nn.ReLU(),
-                nn.Linear(hidden_dim, hidden_dim * 2),
-            )
-            nn.init.zeros_(self.rel_proj[-1].weight)
-            nn.init.zeros_(self.rel_proj[-1].bias)
+            if self.qk_reliability_encoder is not None:
+                self.rel_proj = nn.Linear(hidden_dim, hidden_dim * 2)
+            else:
+                self.rel_proj = nn.Sequential(
+                    nn.Linear(qk_reliability_dim or reliability_dim, hidden_dim),
+                    nn.ReLU(),
+                    nn.Linear(hidden_dim, hidden_dim * 2),
+                )
+            nn.init.zeros_(self.rel_proj[-1].weight if isinstance(self.rel_proj, nn.Sequential) else self.rel_proj.weight)
+            nn.init.zeros_(self.rel_proj[-1].bias if isinstance(self.rel_proj, nn.Sequential) else self.rel_proj.bias)
             if fixed_qk_strength is None:
                 self.qk_mod_strength = nn.Parameter(torch.tensor(float(qk_strength_init)))
             else:
@@ -165,9 +201,13 @@ class LinearGTLayer(nn.Module):
             self.qk_mod_strength = None
 
         if use_gate:
-            self.rel_gate_proj = nn.Sequential(
-                nn.Linear(reliability_dim, hidden_dim),
-                nn.ReLU(),
+            self.rel_gate_proj = (
+                None
+                if self.gate_reliability_encoder is not None
+                else nn.Sequential(
+                    nn.Linear(reliability_dim, hidden_dim),
+                    nn.ReLU(),
+                )
             )
             self.gate = nn.Sequential(
                 nn.Linear(hidden_dim * 4, hidden_dim),
@@ -191,7 +231,10 @@ class LinearGTLayer(nn.Module):
         self.latest_qk_stats = None
         if self.use_reliability:
             qk_input = reliability_qk if reliability_qk is not None else reliability_gate
-            rel_params = self.rel_proj(qk_input)
+            if self.qk_reliability_encoder is not None:
+                rel_params = self.rel_proj(self.qk_reliability_encoder(qk_input))
+            else:
+                rel_params = self.rel_proj(qk_input)
             delta_q, delta_k = rel_params.chunk(2, dim=-1)
             if self.fixed_qk_strength is None:
                 strength = torch.sigmoid(self.qk_mod_strength)
@@ -207,7 +250,11 @@ class LinearGTLayer(nn.Module):
 
         gate_value = None
         if self.use_gate:
-            rel_h = self.rel_gate_proj(reliability_gate)
+            rel_h = (
+                self.gate_reliability_encoder(reliability_gate)
+                if self.gate_reliability_encoder is not None
+                else self.rel_gate_proj(reliability_gate)
+            )
             gate_value = self.gate(torch.cat([x, rel_h, local_h, global_h], dim=-1))
             mixed = gate_value * local_h + (1.0 - gate_value) * global_h
         else:
@@ -233,6 +280,7 @@ class LinearGT(nn.Module):
         qk_mode: str = "both",
         qk_strength_init: float = -5.0,
         fixed_qk_strength: float | None = None,
+        reliability_encoder_mode: str = "separate",
     ):
         super().__init__()
         self.input_proj = nn.Linear(in_dim, hidden_dim)
@@ -249,6 +297,7 @@ class LinearGT(nn.Module):
                     qk_mode=qk_mode,
                     qk_strength_init=qk_strength_init,
                     fixed_qk_strength=fixed_qk_strength,
+                    reliability_encoder_mode=reliability_encoder_mode,
                 )
                 for _ in range(num_layers)
             ]
@@ -365,8 +414,13 @@ def build_model(
             qk_strength_init=qk_strength_init,
             fixed_qk_strength=fixed_qk_strength,
         )
-    if name in {"qk_gt", "q_only_gt", "k_only_gt"}:
-        qk_mode = {"qk_gt": "both", "q_only_gt": "q_only", "k_only_gt": "k_only"}[name]
+    if name in {"qk_gt", "q_only_gt", "k_only_gt", "qk_gt_encoded"}:
+        qk_mode = {
+            "qk_gt": "both",
+            "q_only_gt": "q_only",
+            "k_only_gt": "k_only",
+            "qk_gt_encoded": "both",
+        }[name]
         return LinearGT(
             in_dim,
             reliability_dim,
@@ -381,8 +435,11 @@ def build_model(
             qk_mode=qk_mode,
             qk_strength_init=qk_strength_init,
             fixed_qk_strength=fixed_qk_strength,
+            reliability_encoder_mode=(
+                "branch_specific" if name == "qk_gt_encoded" else "separate"
+            ),
         )
-    if name == "gate_gt":
+    if name in {"gate_gt", "gate_gt_encoded"}:
         return LinearGT(
             in_dim,
             reliability_dim,
@@ -396,8 +453,11 @@ def build_model(
             use_gate=True,
             qk_strength_init=qk_strength_init,
             fixed_qk_strength=fixed_qk_strength,
+            reliability_encoder_mode=(
+                "branch_specific" if name == "gate_gt_encoded" else "separate"
+            ),
         )
-    if name == "reliability_gt":
+    if name in {"reliability_gt", "reliability_gt_encoded"}:
         return LinearGT(
             in_dim,
             reliability_dim,
@@ -411,5 +471,8 @@ def build_model(
             use_gate=True,
             qk_strength_init=qk_strength_init,
             fixed_qk_strength=fixed_qk_strength,
+            reliability_encoder_mode=(
+                "branch_specific" if name == "reliability_gt_encoded" else "separate"
+            ),
         )
     raise ValueError(f"Unknown model: {name}")

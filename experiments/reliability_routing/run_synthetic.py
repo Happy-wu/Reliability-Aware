@@ -10,7 +10,12 @@ import torch
 import torch.nn.functional as F
 from tqdm import trange
 
-from src.data import make_synthetic_graph, set_seed
+from src.data import (
+    RELIABILITY_COMPONENTS,
+    make_synthetic_graph,
+    select_reliability_components,
+    set_seed,
+)
 from src.models import build_model
 
 
@@ -32,6 +37,7 @@ def train_one(args: argparse.Namespace, seed: int) -> dict[str, float | str | in
         seed=seed,
         rw_steps=args.rw_steps,
     )
+    data = select_reliability_components(data, args.reliability_components)
     data = move_data(data, device)
 
     model = build_model(
@@ -86,6 +92,10 @@ def train_one(args: argparse.Namespace, seed: int) -> dict[str, float | str | in
         "model": args.model,
         "graph_type": args.graph_type,
         "seed": seed,
+        "reliability_components": ",".join(args.reliability_components),
+        "reliability_encoder": (
+            "branch_specific" if args.model.endswith("_encoded") else "separate"
+        ),
         "best_val_acc": best_val,
         "test_acc_at_best_val": best_test,
         "qk_strength_init": args.qk_strength_init,
@@ -131,9 +141,12 @@ def collect_diagnostics(model: torch.nn.Module, data) -> dict[str, float]:
     gate = getattr(model, "latest_gate", None)
     if gate is not None:
         gate_np = gate.detach().cpu().view(-1).numpy()
-        rel = data.reliability_gate.detach().cpu()
+        rel = data.reliability_gate_raw.detach().cpu()
         diagnostics["gate_corr_degree"] = safe_corr(gate_np, rel[:, 0].numpy())
-        diagnostics["gate_corr_local_similarity"] = safe_corr(gate_np, rel[:, 1].numpy())
+        diagnostics["gate_corr_local_similarity"] = safe_corr(
+            gate_np,
+            data.local_similarity.detach().cpu().view(-1).numpy(),
+        )
         diagnostics["gate_corr_neighbor_variance"] = safe_corr(gate_np, rel[:, 2].numpy())
         diagnostics["gate_corr_rwse_mean"] = safe_corr(gate_np, rel[:, 3:].mean(dim=1).numpy())
 
@@ -141,12 +154,12 @@ def collect_diagnostics(model: torch.nn.Module, data) -> dict[str, float]:
     if len(gates_by_layer) >= 1:
         diagnostics["gate_corr_layer1_local_similarity"] = safe_corr(
             gates_by_layer[0].detach().cpu().view(-1).numpy(),
-            data.reliability_gate.detach().cpu()[:, 1].numpy(),
+            data.local_similarity.detach().cpu().view(-1).numpy(),
         )
     if len(gates_by_layer) >= 2:
         diagnostics["gate_corr_layer2_local_similarity"] = safe_corr(
             gates_by_layer[1].detach().cpu().view(-1).numpy(),
-            data.reliability_gate.detach().cpu()[:, 1].numpy(),
+            data.local_similarity.detach().cpu().view(-1).numpy(),
         )
 
     return diagnostics
@@ -165,6 +178,8 @@ def move_data(data, device: torch.device):
     data.reliability = data.reliability.to(device)
     data.reliability_gate = data.reliability_gate.to(device)
     data.reliability_qk = data.reliability_qk.to(device)
+    data.reliability_gate_raw = data.reliability_gate_raw.to(device)
+    data.reliability_qk_raw = data.reliability_qk_raw.to(device)
     data.train_mask = data.train_mask.to(device)
     data.val_mask = data.val_mask.to(device)
     data.test_mask = data.test_mask.to(device)
@@ -185,6 +200,9 @@ def parse_args() -> argparse.Namespace:
             "qk_gt",
             "gate_gt",
             "reliability_gt",
+            "qk_gt_encoded",
+            "gate_gt_encoded",
+            "reliability_gt_encoded",
         ],
         default="reliability_gt",
     )
@@ -196,6 +214,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--feature-noise", type=float, default=0.7)
     parser.add_argument("--edge-noise", type=float, default=0.0)
     parser.add_argument("--rw-steps", type=int, default=4)
+    parser.add_argument(
+        "--reliability-components",
+        nargs="+",
+        choices=RELIABILITY_COMPONENTS,
+        default=list(RELIABILITY_COMPONENTS),
+    )
     parser.add_argument("--hidden-dim", type=int, default=64)
     parser.add_argument("--num-layers", type=int, default=2)
     parser.add_argument("--num-heads", type=int, default=4)
@@ -224,12 +248,24 @@ def main() -> None:
     if not np.isnan(corr).all():
         print(f"gate/local-sim corr mean={np.nanmean(corr):.4f} std={np.nanstd(corr):.4f}")
 
-    out_path = args.out_dir / f"{args.graph_type}_{args.model}.csv"
+    component_tag = "-".join(args.reliability_components)
+    strength_tag = (
+        f"fixed-{format_tag_float(args.fixed_qk_strength)}"
+        if args.fixed_qk_strength is not None
+        else f"init-{format_tag_float(args.qk_strength_init)}"
+    )
+    out_path = args.out_dir / (
+        f"{args.graph_type}_{args.model}_{component_tag}_{strength_tag}.csv"
+    )
     with out_path.open("w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
         writer.writeheader()
         writer.writerows(rows)
     print(f"saved: {out_path}")
+
+
+def format_tag_float(value: float) -> str:
+    return f"{value:g}".replace("-", "m").replace(".", "p")
 
 
 if __name__ == "__main__":

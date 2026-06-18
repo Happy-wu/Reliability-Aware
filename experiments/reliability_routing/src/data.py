@@ -7,6 +7,9 @@ import torch
 import torch.nn.functional as F
 
 
+RELIABILITY_COMPONENTS = ("degree", "local_similarity", "neighbor_variance", "rwse")
+
+
 @dataclass
 class GraphData:
     x: torch.Tensor
@@ -15,6 +18,8 @@ class GraphData:
     reliability: torch.Tensor
     reliability_gate: torch.Tensor
     reliability_qk: torch.Tensor
+    reliability_gate_raw: torch.Tensor
+    reliability_qk_raw: torch.Tensor
     train_mask: torch.Tensor
     val_mask: torch.Tensor
     test_mask: torch.Tensor
@@ -118,11 +123,44 @@ def make_synthetic_graph(
         reliability=reliability_gate,
         reliability_gate=reliability_gate,
         reliability_qk=reliability_qk,
+        reliability_gate_raw=reliability_gate.clone(),
+        reliability_qk_raw=reliability_qk.clone(),
         train_mask=train_mask,
         val_mask=val_mask,
         test_mask=test_mask,
         local_similarity=local_similarity,
     )
+
+
+def select_reliability_components(
+    data: GraphData,
+    components: list[str] | tuple[str, ...],
+) -> GraphData:
+    selected = set(components)
+    unknown = selected.difference(RELIABILITY_COMPONENTS)
+    if unknown:
+        raise ValueError(f"Unknown reliability components: {sorted(unknown)}")
+    if not selected:
+        raise ValueError("At least one reliability component must be selected")
+
+    gate_mask = data.reliability_gate.new_zeros(data.reliability_gate.size(1))
+    qk_mask = data.reliability_qk.new_zeros(data.reliability_qk.size(1))
+
+    if "degree" in selected:
+        gate_mask[0] = 1.0
+        qk_mask[0] = 1.0
+    if "local_similarity" in selected:
+        gate_mask[1] = 1.0
+    if "neighbor_variance" in selected:
+        gate_mask[2] = 1.0
+    if "rwse" in selected:
+        gate_mask[3:] = 1.0
+        qk_mask[1:] = 1.0
+
+    data.reliability_gate = data.reliability_gate * gate_mask.unsqueeze(0)
+    data.reliability_qk = data.reliability_qk * qk_mask.unsqueeze(0)
+    data.reliability = data.reliability_gate
+    return data
 
 
 def stratified_masks(
@@ -228,7 +266,9 @@ def random_walk_return_features(
 
 
 def standardize(x: torch.Tensor, eps: float = 1e-6) -> torch.Tensor:
-    return (x - x.mean(dim=0, keepdim=True)) / (x.std(dim=0, keepdim=True) + eps)
+    return (x - x.mean(dim=0, keepdim=True)) / (
+        x.std(dim=0, keepdim=True, unbiased=False) + eps
+    )
 
 
 def add_self_loops(edge_index: torch.Tensor, num_nodes: int) -> torch.Tensor:

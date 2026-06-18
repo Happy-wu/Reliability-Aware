@@ -8,6 +8,7 @@ from statistics import mean, pstdev
 from types import SimpleNamespace
 
 from run_synthetic import train_one
+from src.data import RELIABILITY_COMPONENTS
 
 
 DEFAULT_MODELS = [
@@ -36,6 +37,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--feature-noise", type=float, default=0.7)
     parser.add_argument("--edge-noise", type=float, default=0.0)
     parser.add_argument("--rw-steps", type=int, default=4)
+    parser.add_argument(
+        "--reliability-components",
+        nargs="+",
+        choices=RELIABILITY_COMPONENTS,
+        default=list(RELIABILITY_COMPONENTS),
+    )
     parser.add_argument("--hidden-dim", type=int, default=64)
     parser.add_argument("--num-layers", type=int, default=2)
     parser.add_argument("--num-heads", type=int, default=4)
@@ -97,6 +104,8 @@ def summarize(rows: list[dict]) -> list[dict]:
             {
                 "graph_type": graph_type,
                 "model": model,
+                "reliability_components": group_rows[0]["reliability_components"],
+                "reliability_encoder": group_rows[0]["reliability_encoder"],
                 "n": len(group_rows),
                 "test_acc_mean": test_mean,
                 "test_acc_std": pstdev(test_values) if len(test_values) > 1 else 0.0,
