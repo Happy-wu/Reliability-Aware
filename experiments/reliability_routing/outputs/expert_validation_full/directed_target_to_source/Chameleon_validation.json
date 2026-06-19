@@ -1,0 +1,152 @@
+[
+  {
+    "dataset": "Chameleon",
+    "status": "valid",
+    "source": "PyG WikipediaNetwork Geom-GCN",
+    "source_url": "https://github.com/graphdml-uiuc-jlu/geom-gcn",
+    "expected": {
+      "num_nodes": 2277,
+      "num_edges": 36101,
+      "num_features": 2325,
+      "num_classes": 5,
+      "num_splits": 10,
+      "source": "PyG WikipediaNetwork Geom-GCN",
+      "source_url": "https://github.com/graphdml-uiuc-jlu/geom-gcn"
+    },
+    "actual": {
+      "num_nodes": 2277,
+      "num_edges": 36101,
+      "num_features": 2325,
+      "num_classes": 5,
+      "num_splits": 10
+    },
+    "splits": {
+      "count": 10,
+      "sizes": [
+        {
+          "split": 0,
+          "train": 1092,
+          "val": 729,
+          "test": 456
+        },
+        {
+          "split": 1,
+          "train": 1092,
+          "val": 729,
+          "test": 456
+        },
+        {
+          "split": 2,
+          "train": 1092,
+          "val": 729,
+          "test": 456
+        },
+        {
+          "split": 3,
+          "train": 1092,
+          "val": 729,
+          "test": 456
+        },
+        {
+          "split": 4,
+          "train": 1092,
+          "val": 729,
+          "test": 456
+        },
+        {
+          "split": 5,
+          "train": 1092,
+          "val": 729,
+          "test": 456
+        },
+        {
+          "split": 6,
+          "train": 1092,
+          "val": 729,
+          "test": 456
+        },
+        {
+          "split": 7,
+          "train": 1092,
+          "val": 729,
+          "test": 456
+        },
+        {
+          "split": 8,
+          "train": 1092,
+          "val": 729,
+          "test": 456
+        },
+        {
+          "split": 9,
+          "train": 1092,
+          "val": 729,
+          "test": 456
+        }
+      ]
+    },
+    "raw_files": [
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/chameleon/geom_gcn/raw/out1_node_feature_label.txt",
+        "size_bytes": 10602901,
+        "sha256": "5fd29736ff31b43a1bfcf305bc8b4cffc3103fb0957667976b2ea0f78aedcf5b"
+      },
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/chameleon/geom_gcn/raw/out1_graph_edges.txt",
+        "size_bytes": 332448,
+        "sha256": "45ac593de9207470090230c8fd76beeb2f60b5371a9be088e8bf31e7f0619a4b"
+      },
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/chameleon/geom_gcn/raw/chameleon_split_0.6_0.2_0.npz",
+        "size_bytes": 1775,
+        "sha256": "36605525b69be4e7df5b31fe6a1d044288c6ebf9f9f0514ca151f6a36afc5e8b"
+      },
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/chameleon/geom_gcn/raw/chameleon_split_0.6_0.2_1.npz",
+        "size_bytes": 1779,
+        "sha256": "d0779d5a1bedf1967d394468a52c0175fb00595d361fba897faf73322386c952"
+      },
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/chameleon/geom_gcn/raw/chameleon_split_0.6_0.2_2.npz",
+        "size_bytes": 1777,
+        "sha256": "86ad0d827bf4301dff830598fc0b70d0dd8689c5b4d72dab1d87a6c1970c4c6e"
+      },
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/chameleon/geom_gcn/raw/chameleon_split_0.6_0.2_3.npz",
+        "size_bytes": 1755,
+        "sha256": "37b3e994adf3afc55e16b617ed05af4e3ce308800755839084d77eced0528e9d"
+      },
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/chameleon/geom_gcn/raw/chameleon_split_0.6_0.2_4.npz",
+        "size_bytes": 1778,
+        "sha256": "f6b1d067b2b330132839d8b6120077bdc6cf759f7ce421f881a02e2953ec4596"
+      },
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/chameleon/geom_gcn/raw/chameleon_split_0.6_0.2_5.npz",
+        "size_bytes": 1772,
+        "sha256": "e7661834275c826692510cea0457b18b2c1ee38771f178d06e701b97541a1f6d"
+      },
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/chameleon/geom_gcn/raw/chameleon_split_0.6_0.2_6.npz",
+        "size_bytes": 1774,
+        "sha256": "16648d1197c1d3a2dec385346212c382030b0d5a8c997f4255aa2afa68a6b174"
+      },
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/chameleon/geom_gcn/raw/chameleon_split_0.6_0.2_7.npz",
+        "size_bytes": 1764,
+        "sha256": "61adcc53846becefecd466a5364dda23b983d387d1ac5d58c6e24d080c0fcba7"
+      },
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/chameleon/geom_gcn/raw/chameleon_split_0.6_0.2_8.npz",
+        "size_bytes": 1770,
+        "sha256": "7076ad5341a8218b1f5b6eccf9cfd15d28286ea11ef5c06eeee77af24ff2bf63"
+      },
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/chameleon/geom_gcn/raw/chameleon_split_0.6_0.2_9.npz",
+        "size_bytes": 1773,
+        "sha256": "743c4f813bf6130398a6511eb9ff07d2366c73bd6c7fddaf226a3f9e2917e0e7"
+      }
+    ],
+    "errors": []
+  }
+]

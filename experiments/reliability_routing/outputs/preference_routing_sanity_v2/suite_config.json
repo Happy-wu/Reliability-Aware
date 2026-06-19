@@ -1,0 +1,44 @@
+{
+  "code_fingerprint": "a2172e9b58b95abf82a70ad3c81cbdd3ef9e2a2410dd846feb0d429a0a875ba3",
+  "datasets": [
+    "Chameleon",
+    "Actor",
+    "Roman-empire"
+  ],
+  "routers": [
+    "reliability_only",
+    "node_feature_only",
+    "combined"
+  ],
+  "runs": 1,
+  "oof_folds": 3,
+  "edge_protocol": "undirected",
+  "data_root": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data",
+  "expert_cache_dir": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/outputs/preference_routing_sanity_v2/_expert_cache",
+  "preference_cache_dir": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/outputs/preference_routing_sanity_v2/_preference_cache",
+  "data_fingerprints": {
+    "Chameleon": "abec22f7a6e6818e16d1c945b3e711867850e016842f545f7a0b18cdff6376fd",
+    "Actor": "b9e1e067010d32c1abc894d5b53684da37fe0c3000d6c6089eb99475573861a0",
+    "Roman-empire": "6c90251bafa0f69081c84b9e964786d57aac3b7be62fa376f64393b6cb87e624"
+  },
+  "reliability_components": [
+    "degree",
+    "local_similarity",
+    "neighbor_variance",
+    "rwse"
+  ],
+  "normalize_features": true,
+  "rw_steps": 4,
+  "rw_samples": 128,
+  "rw_seed": 0,
+  "hidden_dim": 64,
+  "num_layers": 2,
+  "num_heads": 4,
+  "dropout": 0.3,
+  "lr": 0.003,
+  "weight_decay": 0.0001,
+  "expert_epochs": 100,
+  "router_epochs": 80,
+  "patience": 30,
+  "device": "cuda"
+}

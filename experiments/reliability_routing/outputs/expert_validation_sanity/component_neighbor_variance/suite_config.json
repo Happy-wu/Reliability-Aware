@@ -1,0 +1,37 @@
+{
+  "code_fingerprint": "acd7d95fb5d8ab6557cb7123aff610c6609a43f5a59fe6b6b64f6e8452b95643",
+  "datasets": [
+    "Cora",
+    "Chameleon",
+    "Actor"
+  ],
+  "data_root": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data",
+  "expert_cache_dir": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/outputs/expert_validation_sanity/_shared_expert_cache",
+  "data_fingerprints": {
+    "Cora": "b1b454ab1e4565619c24ee5251bb8a356262a72fbbc91d3875917dbfe4026068",
+    "Chameleon": "abec22f7a6e6818e16d1c945b3e711867850e016842f545f7a0b18cdff6376fd",
+    "Actor": "b9e1e067010d32c1abc894d5b53684da37fe0c3000d6c6089eb99475573861a0"
+  },
+  "models": [
+    "reliability_gate"
+  ],
+  "edge_protocol": "undirected",
+  "runs": 3,
+  "normalize_features": true,
+  "rw_steps": 4,
+  "rw_samples": 128,
+  "rw_seed": 0,
+  "reliability_components": [
+    "neighbor_variance"
+  ],
+  "hidden_dim": 64,
+  "num_layers": 2,
+  "num_heads": 4,
+  "dropout": 0.3,
+  "lr": 0.003,
+  "weight_decay": 0.0001,
+  "expert_epochs": 100,
+  "gate_epochs": 80,
+  "patience": 30,
+  "device": "cuda"
+}

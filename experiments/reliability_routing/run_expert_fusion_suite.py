@@ -10,7 +10,13 @@ import subprocess
 import sys
 from pathlib import Path
 
-from src.real_data import EDGE_PROTOCOLS, REAL_DATASETS
+from src.data import RELIABILITY_COMPONENTS
+from src.real_data import (
+    EDGE_PROTOCOLS,
+    REAL_DATASETS,
+    load_and_validate_dataset,
+    validation_fingerprint,
+)
 
 
 BASE_MODELS = ("gcn_pyg", "global_only", "ordinary_gate", "reliability_gate")
@@ -26,6 +32,21 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--runs", type=int, default=10)
     parser.add_argument("--data-root", type=Path, default=Path("data"))
     parser.add_argument("--out-dir", type=Path, default=Path("outputs/expert_fusion_undirected"))
+    parser.add_argument("--expert-cache-dir", type=Path)
+    parser.add_argument(
+        "--normalize-features",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+    )
+    parser.add_argument("--rw-steps", type=int, default=4)
+    parser.add_argument("--rw-samples", type=int, default=128)
+    parser.add_argument("--rw-seed", type=int, default=0)
+    parser.add_argument(
+        "--reliability-components",
+        nargs="+",
+        choices=RELIABILITY_COMPONENTS,
+        default=list(RELIABILITY_COMPONENTS),
+    )
     parser.add_argument("--hidden-dim", type=int, default=64)
     parser.add_argument("--num-layers", type=int, default=2)
     parser.add_argument("--num-heads", type=int, default=4)
@@ -50,9 +71,16 @@ def main() -> None:
     root = Path(__file__).resolve().parent
     data_root = resolve(root, args.data_root)
     out_dir = resolve(root, args.out_dir)
+    expert_cache_dir = (
+        resolve(root, args.expert_cache_dir)
+        if args.expert_cache_dir is not None
+        else out_dir / "_expert_cache"
+    )
     out_dir.mkdir(parents=True, exist_ok=True)
+    args.expert_cache_dir = expert_cache_dir
     specs = model_specs(args)
-    config = suite_config(args, root, specs)
+    data_fingerprints = collect_data_fingerprints(args, data_root)
+    config = suite_config(args, root, specs, data_fingerprints)
     validate_or_write_config(out_dir, config, args.force)
     if not args.analyze_only:
         run_experiments(args, root, data_root, out_dir, specs)
@@ -60,7 +88,13 @@ def main() -> None:
         f"{dataset}/{name}"
         for dataset in args.datasets
         for _, name, _ in specs
-        if not result_complete(out_dir / f"{dataset}_{name}.csv", args.runs)
+        if not result_complete(
+            out_dir / f"{dataset}_{name}.csv",
+            args.runs,
+            dataset,
+            name,
+            args.edge_protocol,
+        )
     ]
     if missing:
         raise SystemExit("Missing expert-fusion results: " + ", ".join(missing))
@@ -82,7 +116,13 @@ def run_experiments(args, root, data_root, out_dir, specs) -> None:
         for model, name, alpha in specs:
             step += 1
             path = out_dir / f"{dataset}_{name}.csv"
-            if not args.force and result_complete(path, args.runs):
+            if not args.force and result_complete(
+                path,
+                args.runs,
+                dataset,
+                name,
+                args.edge_protocol,
+            ):
                 print(f"[{step}/{total}] skip {dataset}/{name}", flush=True)
                 continue
             if args.force and path.exists():
@@ -97,7 +137,11 @@ def run_experiments(args, root, data_root, out_dir, specs) -> None:
                 "--runs", str(args.runs),
                 "--data-root", str(data_root),
                 "--out-dir", str(out_dir),
-                "--expert-cache-dir", str(out_dir / "_expert_cache"),
+                "--expert-cache-dir", str(args.expert_cache_dir),
+                "--rw-steps", str(args.rw_steps),
+                "--rw-samples", str(args.rw_samples),
+                "--rw-seed", str(args.rw_seed),
+                "--reliability-components", *args.reliability_components,
                 "--hidden-dim", str(args.hidden_dim),
                 "--num-layers", str(args.num_layers),
                 "--num-heads", str(args.num_heads),
@@ -111,6 +155,8 @@ def run_experiments(args, root, data_root, out_dir, specs) -> None:
             ]
             if alpha is not None:
                 command.extend(["--fixed-alpha", str(alpha)])
+            if not args.normalize_features:
+                command.append("--no-normalize-features")
             if args.no_download:
                 command.append("--no-download")
             print(f"[{step}/{total}] run {dataset}/{name}", flush=True)
@@ -123,6 +169,10 @@ def analyze(args, out_dir, specs) -> None:
     for dataset in args.datasets:
         for name in names:
             rows.extend(read_csv(out_dir / f"{dataset}_{name}.csv"))
+    best_fixed_rows = select_best_fixed_alpha_by_val(rows)
+    rows.extend(best_fixed_rows)
+    if best_fixed_rows:
+        names.append("best_fixed_alpha_by_val")
     summary = summarize(rows)
     comparisons = paired_comparisons(rows, args.datasets, names)
     write_csv(out_dir / "summary.csv", summary)
@@ -143,13 +193,34 @@ def analyze(args, out_dir, specs) -> None:
         "",
         "## Accuracy Summary",
         "",
-        "| Dataset | Model | Accuracy | Macro-F1 | Std |",
-        "|---|---|---:|---:|---:|",
+        "| Dataset | Model | Accuracy | Macro-F1 | Std | Selected alpha |",
+        "|---|---|---:|---:|---:|---:|",
     ]
     for row in summary:
         report.append(
             f"| {row['dataset']} | {row['model']} | {row['test_acc_mean']:.4f} | "
-            f"{row['macro_f1_mean']:.4f} | {row['test_acc_std']:.4f} |"
+            f"{row['macro_f1_mean']:.4f} | {row['test_acc_std']:.4f} | "
+            f"{fmt_plain(row['selected_fixed_alpha'])} |"
+        )
+    report.extend(
+        [
+            "",
+            "## Expert Complementarity",
+            "",
+            "| Dataset | Model | Local test | Global test | Local-only correct | Global-only correct | Global correct given local wrong |",
+            "|---|---|---:|---:|---:|---:|---:|",
+        ]
+    )
+    for row in summary:
+        if math.isnan(float(row["test_global_only_correct"])):
+            continue
+        report.append(
+            f"| {row['dataset']} | {row['model']} | "
+            f"{fmt_plain(row['local_expert_test_acc'])} | "
+            f"{fmt_plain(row['global_expert_test_acc'])} | "
+            f"{fmt_plain(row['test_local_only_correct'])} | "
+            f"{fmt_plain(row['test_global_only_correct'])} | "
+            f"{fmt_plain(row['test_global_correct_given_local_wrong'])} |"
         )
     report.extend(
         [
@@ -202,15 +273,69 @@ def summarize(rows):
                 "global_logit_norm_mean": finite_mean(
                     group, "global_logit_norm_mean"
                 ),
+                "local_expert_test_acc": finite_mean(
+                    group, "local_expert_test_acc"
+                ),
+                "global_expert_test_acc": finite_mean(
+                    group, "global_expert_test_acc"
+                ),
+                "test_local_only_correct": finite_mean(
+                    group, "test_local_only_correct"
+                ),
+                "test_global_only_correct": finite_mean(
+                    group, "test_global_only_correct"
+                ),
+                "test_global_correct_given_local_wrong": finite_mean(
+                    group, "test_global_correct_given_local_wrong"
+                ),
+                "selected_fixed_alpha": finite_mean(group, "fixed_alpha"),
+                "fallback_max_abs_error": finite_mean(
+                    group, "fallback_max_abs_error"
+                ),
             }
         )
     return output
+
+
+def select_best_fixed_alpha_by_val(rows):
+    fixed_rows = [
+        row for row in rows if row["model"].startswith("fixed_alpha_")
+    ]
+    groups = {}
+    for row in fixed_rows:
+        key = (row["dataset"], int(row["split"]), int(row["seed"]))
+        groups.setdefault(key, []).append(row)
+    selected = []
+    for group in groups.values():
+        best = max(
+            group,
+            key=lambda row: (
+                float(row["best_val_acc"]),
+                -abs(float(row["fixed_alpha"]) - 0.5),
+                -float(row["fixed_alpha"]),
+            ),
+        )
+        derived = dict(best)
+        derived["model"] = "best_fixed_alpha_by_val"
+        derived["model_family"] = "best_fixed_alpha_by_val"
+        selected.append(derived)
+    return selected
 
 
 def paired_comparisons(rows, datasets, names):
     pairs = []
     if "ordinary_gate" in names and "reliability_gate" in names:
         pairs.append(("reliability_gate", "ordinary_gate", "Reliability gate - ordinary gate"))
+    if "best_fixed_alpha_by_val" in names:
+        for model in ("ordinary_gate", "reliability_gate"):
+            if model in names:
+                pairs.append(
+                    (
+                        model,
+                        "best_fixed_alpha_by_val",
+                        f"{model} - validation-selected fixed alpha",
+                    )
+                )
     if "gcn_pyg" in names:
         if "fixed_alpha_000" in names and "global_only" in names:
             pairs.append(
@@ -312,9 +437,11 @@ def finite_mean(rows, key):
     return statistics.mean(values) if values else math.nan
 
 
-def suite_config(args, root, specs):
+def suite_config(args, root, specs, data_fingerprints):
     digest = hashlib.sha256()
     for relative in (
+        "src/data.py",
+        "src/models.py",
         "src/expert_models.py",
         "src/real_data.py",
         "run_expert_fusion.py",
@@ -324,9 +451,17 @@ def suite_config(args, root, specs):
     return {
         "code_fingerprint": digest.hexdigest(),
         "datasets": args.datasets,
+        "data_root": str(resolve(root, args.data_root)),
+        "expert_cache_dir": str(args.expert_cache_dir),
+        "data_fingerprints": data_fingerprints,
         "models": [name for _, name, _ in specs],
         "edge_protocol": args.edge_protocol,
         "runs": args.runs,
+        "normalize_features": args.normalize_features,
+        "rw_steps": args.rw_steps,
+        "rw_samples": args.rw_samples,
+        "rw_seed": args.rw_seed,
+        "reliability_components": args.reliability_components,
         "hidden_dim": args.hidden_dim,
         "num_layers": args.num_layers,
         "num_heads": args.num_heads,
@@ -340,6 +475,18 @@ def suite_config(args, root, specs):
     }
 
 
+def collect_data_fingerprints(args, data_root):
+    fingerprints = {}
+    for dataset in args.datasets:
+        _, report = load_and_validate_dataset(
+            dataset,
+            data_root,
+            allow_download=not args.no_download,
+        )
+        fingerprints[dataset] = validation_fingerprint(report)
+    return fingerprints
+
+
 def validate_or_write_config(out_dir, config, force):
     path = out_dir / "suite_config.json"
     if path.exists() and not force:
@@ -349,8 +496,45 @@ def validate_or_write_config(out_dir, config, force):
     path.write_text(json.dumps(config, indent=2), encoding="utf-8")
 
 
-def result_complete(path, runs):
-    return path.exists() and len(read_csv(path)) == runs
+def result_complete(path, runs, dataset, model, edge_protocol):
+    if not path.exists():
+        return False
+    rows = read_csv(path)
+    required = {
+        "dataset",
+        "model",
+        "edge_protocol",
+        "split",
+        "seed",
+        "best_val_acc",
+        "test_acc_at_best_val",
+        "normalize_features",
+        "rw_steps",
+        "rw_samples",
+        "rw_seed",
+        "hidden_dim",
+        "num_layers",
+        "num_heads",
+        "dropout",
+        "lr",
+        "weight_decay",
+        "expert_epochs",
+        "gate_epochs",
+        "patience",
+        "data_fingerprint",
+        "preprocess_code_hash",
+    }
+    if len(rows) != runs or not rows or not required.issubset(rows[0]):
+        return False
+    if any(
+        row["dataset"] != dataset
+        or row["model"] != model
+        or row["edge_protocol"] != edge_protocol
+        for row in rows
+    ):
+        return False
+    run_keys = {(int(row["split"]), int(row["seed"])) for row in rows}
+    return len(run_keys) == runs
 
 
 def read_csv(path):
@@ -377,6 +561,10 @@ def empty_stats():
 
 def fmt(value):
     return "n/a" if math.isnan(float(value)) else f"{float(value):+.4f}"
+
+
+def fmt_plain(value):
+    return "n/a" if math.isnan(float(value)) else f"{float(value):.3f}"
 
 
 def resolve(root, path):

@@ -11,7 +11,22 @@ import torch
 from .data import GraphData, standardize
 
 
-REAL_DATASETS = ("Cora", "Citeseer", "Pubmed", "Chameleon", "Squirrel", "Actor")
+HETERO_UNDIRECTED_DATASETS = (
+    "Roman-empire",
+    "Amazon-ratings",
+    "Minesweeper",
+    "Tolokers",
+    "Questions",
+)
+REAL_DATASETS = (
+    "Cora",
+    "Citeseer",
+    "Pubmed",
+    "Chameleon",
+    "Squirrel",
+    "Actor",
+    *HETERO_UNDIRECTED_DATASETS,
+)
 EDGE_PROTOCOLS = ("undirected", "source_to_target", "target_to_source")
 
 
@@ -33,6 +48,13 @@ EXPECTED_DATASETS = {
     "Chameleon": DatasetExpectation(2277, 36101, 2325, 5, 10, "PyG WikipediaNetwork Geom-GCN", "https://github.com/graphdml-uiuc-jlu/geom-gcn"),
     "Squirrel": DatasetExpectation(5201, 217073, 2089, 5, 10, "PyG WikipediaNetwork Geom-GCN", "https://github.com/graphdml-uiuc-jlu/geom-gcn"),
     "Actor": DatasetExpectation(7600, 30019, 932, 5, 10, "PyG Actor/Geom-GCN", "https://github.com/graphdml-uiuc-jlu/geom-gcn"),
+    # PyG stores both directions after processing these originally undirected
+    # edge lists, so the expected edge counts are twice the paper's counts.
+    "Roman-empire": DatasetExpectation(22662, 65854, 300, 18, 10, "PyG HeterophilousGraphDataset", "https://github.com/yandex-research/heterophilous-graphs"),
+    "Amazon-ratings": DatasetExpectation(24492, 186100, 300, 5, 10, "PyG HeterophilousGraphDataset", "https://github.com/yandex-research/heterophilous-graphs"),
+    "Minesweeper": DatasetExpectation(10000, 78804, 7, 2, 10, "PyG HeterophilousGraphDataset", "https://github.com/yandex-research/heterophilous-graphs"),
+    "Tolokers": DatasetExpectation(11758, 1038000, 10, 2, 10, "PyG HeterophilousGraphDataset", "https://github.com/yandex-research/heterophilous-graphs"),
+    "Questions": DatasetExpectation(48921, 307080, 301, 2, 10, "PyG HeterophilousGraphDataset", "https://github.com/yandex-research/heterophilous-graphs"),
 }
 
 
@@ -62,7 +84,12 @@ def load_and_validate_dataset(
 
 
 def load_pyg_dataset(name: str, root: Path, allow_download: bool) -> object:
-    from torch_geometric.datasets import Actor, Planetoid, WikipediaNetwork
+    from torch_geometric.datasets import (
+        Actor,
+        HeterophilousGraphDataset,
+        Planetoid,
+        WikipediaNetwork,
+    )
 
     if not allow_download and not dataset_has_local_files(name, root):
         raise FileNotFoundError(
@@ -78,7 +105,9 @@ def load_pyg_dataset(name: str, root: Path, allow_download: bool) -> object:
             name=name.lower(),
             geom_gcn_preprocess=True,
         )
-    return Actor(root=str(root / "Actor"))
+    if name == "Actor":
+        return Actor(root=str(root / "Actor"))
+    return HeterophilousGraphDataset(root=str(root), name=name)
 
 
 def existing_planetoid_name(name: str, root: Path) -> str:
@@ -101,6 +130,11 @@ def dataset_has_local_files(name: str, root: Path) -> bool:
         "Chameleon": ("chameleon", "Chameleon"),
         "Squirrel": ("squirrel", "Squirrel"),
         "Actor": ("Actor",),
+        "Roman-empire": ("roman_empire", "Roman-empire"),
+        "Amazon-ratings": ("amazon_ratings", "Amazon-ratings"),
+        "Minesweeper": ("minesweeper", "Minesweeper"),
+        "Tolokers": ("tolokers", "Tolokers"),
+        "Questions": ("questions", "Questions"),
     }
     return any((root / candidate).exists() for candidate in aliases[name])
 
@@ -133,6 +167,11 @@ def validate_pyg_data(name: str, dataset: object, data: object) -> dict[str, obj
         errors.append("Node features contain NaN or Inf")
     if data.y.min().item() < 0:
         errors.append("Labels contain negative values")
+    if name in HETERO_UNDIRECTED_DATASETS:
+        from torch_geometric.utils import is_undirected
+
+        if not is_undirected(data.edge_index, num_nodes=data.num_nodes):
+            errors.append("Official undirected dataset is not stored bidirectionally")
 
     labels = torch.unique(data.y).cpu()
     if not torch.equal(labels, torch.arange(expected.num_classes)):
@@ -150,6 +189,7 @@ def validate_pyg_data(name: str, dataset: object, data: object) -> dict[str, obj
         "status": "valid" if not errors else "invalid",
         "source": expected.source,
         "source_url": expected.source_url,
+        "officially_undirected": name in HETERO_UNDIRECTED_DATASETS,
         "expected": asdict(expected),
         "actual": actual,
         "splits": split_report,
@@ -344,8 +384,11 @@ def save_reliability_cache(
 
 
 def row_normalize_features(x: torch.Tensor) -> torch.Tensor:
-    x = x - x.min(dim=-1, keepdim=True).values
-    return x / x.sum(dim=-1, keepdim=True).clamp_min(1e-12)
+    if bool((x < 0).any()):
+        denominator = x.abs().sum(dim=-1, keepdim=True)
+    else:
+        denominator = x.sum(dim=-1, keepdim=True)
+    return x / denominator.clamp_min(1e-12)
 
 
 def compute_real_reliability(
@@ -433,6 +476,9 @@ def monte_carlo_rwse(
         next_nodes[active] = dst[indptr[current[active]] + offsets]
         current = next_nodes
         returns = (current == starts).reshape(num_nodes, samples).mean(axis=1)
+        # No-self-loop random walk: isolated nodes have no valid transition
+        # and therefore no return event.
+        returns[counts == 0] = 0.0
         outputs.append(torch.from_numpy(returns).float().unsqueeze(1))
     return standardize(torch.cat(outputs, dim=1))
 

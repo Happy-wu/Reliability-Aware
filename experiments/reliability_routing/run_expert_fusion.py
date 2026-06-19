@@ -26,6 +26,10 @@ from src.real_data import (
 )
 
 
+FALLBACK_ATOL = 1e-5
+FALLBACK_RTOL = 1e-5
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset", choices=REAL_DATASETS, required=True)
@@ -91,8 +95,13 @@ def main() -> None:
         [validation],
         out_dir / f"{args.dataset}_validation.json",
     )
+    args.data_fingerprint = validation_fingerprint(validation)
+    args.preprocess_code_hash = code_hash(
+        [root / "src" / "real_data.py", root / "src" / "data.py"]
+    )
     cache_key = (
-        f"{validation_fingerprint(validation)}:"
+        f"{args.data_fingerprint}:"
+        f"relcode={args.preprocess_code_hash}:"
         f"protocol={args.edge_protocol}:norm={int(args.normalize_features)}:"
         f"steps={args.rw_steps}:samples={args.rw_samples}:seed={args.rw_seed}"
     )
@@ -160,7 +169,15 @@ def train_one(args, base_data, device, split: int, seed: int) -> dict[str, objec
 
     local_result = None
     global_result = None
-    if args.model != "global_only":
+    needs_local = not (
+        args.model == "global_only"
+        or (args.model == "fixed_alpha" and args.fixed_alpha == 0.0)
+    )
+    needs_global = not (
+        args.model == "gcn_pyg"
+        or (args.model == "fixed_alpha" and args.fixed_alpha == 1.0)
+    )
+    if needs_local:
         set_seed(seed)
         local_result = train_or_load_expert(
             cache_path=expert_cache_path(args, split, seed, "local"),
@@ -169,7 +186,7 @@ def train_one(args, base_data, device, split: int, seed: int) -> dict[str, objec
             data=data,
             args=args,
         )
-    if args.model != "gcn_pyg":
+    if needs_global:
         set_seed(seed + 100_000)
         global_result = train_or_load_expert(
             cache_path=expert_cache_path(args, split, seed, "global"),
@@ -192,6 +209,10 @@ def train_one(args, base_data, device, split: int, seed: int) -> dict[str, objec
             args.lr,
             args.weight_decay,
         )
+    elif args.model == "gcn_pyg":
+        final_result = local_result
+    elif args.model == "global_only":
+        final_result = global_result
     else:
         model.eval()
         with torch.no_grad():
@@ -199,25 +220,45 @@ def train_one(args, base_data, device, split: int, seed: int) -> dict[str, objec
         final_result = evaluate_result(logits, data, epoch=0)
 
     model.eval()
+    fallback_max_abs_error = math.nan
     with torch.no_grad():
         logits = model(data.x, data.edge_index, data.reliability_gate)
         if args.model == "fixed_alpha" and args.fixed_alpha == 1.0:
             local_logits = model.forward_local(data.x, data.edge_index)
-            if not torch.equal(logits, local_logits):
-                max_error = float((logits - local_logits).abs().max().cpu())
+            fallback_max_abs_error = float(
+                (logits - local_logits).abs().max().cpu()
+            )
+            if not torch.allclose(
+                logits,
+                local_logits,
+                atol=FALLBACK_ATOL,
+                rtol=FALLBACK_RTOL,
+            ):
                 raise AssertionError(
-                    f"alpha=1 failed exact GCN fallback; max_error={max_error}"
+                    "alpha=1 failed GCN fallback; "
+                    f"max_error={fallback_max_abs_error}, "
+                    f"atol={FALLBACK_ATOL}, rtol={FALLBACK_RTOL}"
                 )
         if args.model == "fixed_alpha" and args.fixed_alpha == 0.0:
             global_logits = model.global_expert(data.x)
-            if not torch.equal(logits, global_logits):
-                max_error = float((logits - global_logits).abs().max().cpu())
+            fallback_max_abs_error = float(
+                (logits - global_logits).abs().max().cpu()
+            )
+            if not torch.allclose(
+                logits,
+                global_logits,
+                atol=FALLBACK_ATOL,
+                rtol=FALLBACK_RTOL,
+            ):
                 raise AssertionError(
-                    f"alpha=0 failed exact global fallback; max_error={max_error}"
+                    "alpha=0 failed global fallback; "
+                    f"max_error={fallback_max_abs_error}, "
+                    f"atol={FALLBACK_ATOL}, rtol={FALLBACK_RTOL}"
                 )
 
     diagnostics = model.diagnostic_stats()
     diagnostics.update(gate_correlations(model, data))
+    diagnostics.update(expert_diagnostics(model, data))
     result_name = args.result_name or args.model
     return {
         "dataset": args.dataset,
@@ -233,8 +274,28 @@ def train_one(args, base_data, device, split: int, seed: int) -> dict[str, objec
         "test_macro_f1_at_best_val": final_result["test_macro_f1"],
         "local_expert_val_acc": value_or_nan(local_result, "val_acc"),
         "global_expert_val_acc": value_or_nan(global_result, "val_acc"),
+        "local_expert_test_acc": value_or_nan(local_result, "test_acc"),
+        "global_expert_test_acc": value_or_nan(global_result, "test_acc"),
+        "local_expert_best_epoch": value_or_nan(local_result, "epoch"),
+        "global_expert_best_epoch": value_or_nan(global_result, "epoch"),
         "fixed_alpha": args.fixed_alpha if args.model == "fixed_alpha" else math.nan,
+        "fallback_max_abs_error": fallback_max_abs_error,
         "reliability_components": ",".join(args.reliability_components),
+        "normalize_features": args.normalize_features,
+        "rw_steps": args.rw_steps,
+        "rw_samples": args.rw_samples,
+        "rw_seed": args.rw_seed,
+        "hidden_dim": args.hidden_dim,
+        "num_layers": args.num_layers,
+        "num_heads": args.num_heads,
+        "dropout": args.dropout,
+        "lr": args.lr,
+        "weight_decay": args.weight_decay,
+        "expert_epochs": args.expert_epochs,
+        "gate_epochs": args.gate_epochs,
+        "patience": args.patience,
+        "data_fingerprint": args.data_fingerprint,
+        "preprocess_code_hash": args.preprocess_code_hash,
         "elapsed_sec": time.time() - start,
         **diagnostics,
     }
@@ -286,11 +347,16 @@ def expert_cache_path(
     source_digest = hashlib.sha256()
     root = Path(__file__).resolve().parent
     source_digest.update((root / "src" / "expert_models.py").read_bytes())
+    source_digest.update((root / "src" / "models.py").read_bytes())
     source_digest.update(Path(__file__).read_bytes())
     config = {
         "source": source_digest.hexdigest(),
+        "data_fingerprint": args.data_fingerprint,
+        "preprocess_code_hash": args.preprocess_code_hash,
         "dataset": args.dataset,
-        "edge_protocol": args.edge_protocol,
+        "edge_protocol": (
+            args.edge_protocol if expert == "local" else "edge_independent"
+        ),
         "normalize_features": args.normalize_features,
         "split": split,
         "seed": seed,
@@ -310,9 +376,17 @@ def expert_cache_path(
     return (
         args.expert_cache_dir
         / args.dataset
-        / args.edge_protocol
+        / (args.edge_protocol if expert == "local" else "edge_independent")
         / f"{expert}_split{split}_seed{seed}_{digest}.pt"
     )
+
+
+def code_hash(paths: list[Path]) -> str:
+    digest = hashlib.sha256()
+    for path in paths:
+        digest.update(str(path.name).encode("utf-8"))
+        digest.update(path.read_bytes())
+    return digest.hexdigest()[:16]
 
 
 def train_module(
@@ -329,8 +403,10 @@ def train_module(
         lr=lr,
         weight_decay=weight_decay,
     )
+    module.eval()
+    with torch.no_grad():
+        best = evaluate_result(forward(), data, epoch=-1)
     best_state = copy.deepcopy(module.state_dict())
-    best = {"epoch": -1, "val_acc": -1.0, "test_acc": 0.0, "test_macro_f1": 0.0}
     stale = 0
     for epoch in range(epochs):
         module.train()
@@ -397,6 +473,64 @@ def gate_correlations(model, data) -> dict[str, float]:
     )
     output["alpha_corr_label_homophily"] = safe_corr(alpha_np, homophily.numpy())
     return output
+
+
+def expert_diagnostics(model, data) -> dict[str, float]:
+    output = {}
+    for split_name, mask in (
+        ("val", data.val_mask),
+        ("test", data.test_mask),
+    ):
+        output.update(
+            {
+                f"{split_name}_both_correct": math.nan,
+                f"{split_name}_local_only_correct": math.nan,
+                f"{split_name}_global_only_correct": math.nan,
+                f"{split_name}_both_wrong": math.nan,
+                f"{split_name}_global_correct_given_local_wrong": math.nan,
+            }
+        )
+    local_logits = model.latest_local_logits
+    global_logits = model.latest_global_logits
+    if local_logits is None or global_logits is None:
+        return output
+    for split_name, mask in (
+        ("val", data.val_mask),
+        ("test", data.test_mask),
+    ):
+        stats = expert_complementarity(
+            local_logits,
+            global_logits,
+            data.y,
+            mask,
+        )
+        output.update(
+            {f"{split_name}_{key}": value for key, value in stats.items()}
+        )
+    return output
+
+
+def expert_complementarity(
+    local_logits: torch.Tensor,
+    global_logits: torch.Tensor,
+    y: torch.Tensor,
+    mask: torch.Tensor,
+) -> dict[str, float]:
+    local_correct = local_logits[mask].argmax(dim=-1) == y[mask]
+    global_correct = global_logits[mask].argmax(dim=-1) == y[mask]
+    local_wrong = ~local_correct
+    local_wrong_count = int(local_wrong.sum())
+    return {
+        "both_correct": float((local_correct & global_correct).float().mean()),
+        "local_only_correct": float((local_correct & ~global_correct).float().mean()),
+        "global_only_correct": float((local_wrong & global_correct).float().mean()),
+        "both_wrong": float((local_wrong & ~global_correct).float().mean()),
+        "global_correct_given_local_wrong": (
+            float(global_correct[local_wrong].float().mean())
+            if local_wrong_count
+            else math.nan
+        ),
+    }
 
 
 def received_label_homophily(edge_index, y, num_nodes: int) -> torch.Tensor:

@@ -142,6 +142,20 @@ CUDA_VISIBLE_DEVICES=0 python run_expert_fusion_suite.py \
 `fixed_alpha_100` 必须与 `gcn_pyg` 完全恢复，ordinary gate 与 reliability
 gate 使用相同参数结构。
 
+一次性验证 fallback、gate、reliability、互补性、edge protocol 和 reliability
+components：
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python run_expert_validation_matrix.py \
+  --profile sanity \
+  --include-directed \
+  --include-components \
+  --data-root data \
+  --out-dir outputs/expert_validation_sanity \
+  --no-download \
+  --device cuda
+```
+
 新的真实数据诊断实验建议写入独立目录：
 
 ```bash

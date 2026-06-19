@@ -9,6 +9,8 @@ The current research pipeline uses complete experts and logits-level routing:
 - `fixed_alpha`: fixed logits interpolation.
 - `ordinary_gate`: node-wise gate without reliability information.
 - `reliability_gate`: same gate architecture with reliability information.
+- Learned gates start exactly at `alpha=0.5`; epoch `-1` records the
+  pre-update gate and remains eligible for early-stopping restoration.
 - Main edge protocol: symmetrized undirected edges.
 - Directed sensitivity: `source_to_target` and `target_to_source`.
 
@@ -30,6 +32,39 @@ CUDA_VISIBLE_DEVICES=0 python run_expert_fusion_suite.py \
 The earlier synthetic and Q/K scripts are archived under
 `scripts/legacy_synthetic/`. Q/K modulation is frozen until reliability-aware
 routing consistently exceeds the ordinary gate.
+
+### One-command validation matrix
+
+Run the recommended multi-claim sanity validation:
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python run_expert_validation_matrix.py \
+  --profile sanity \
+  --include-directed \
+  --include-components \
+  --data-root data \
+  --out-dir outputs/expert_validation_sanity \
+  --no-download \
+  --device cuda
+```
+
+Run the full confirmatory matrix:
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python run_expert_validation_matrix.py \
+  --profile full \
+  --include-directed \
+  --include-components \
+  --data-root data \
+  --out-dir outputs/expert_validation_full \
+  --no-download \
+  --device cuda
+```
+
+The matrix tests GCN/global fallback, ordinary gate versus validation-selected
+fixed alpha, reliability gate versus ordinary gate, expert complementarity,
+directed-edge sensitivity, and individual reliability components. It writes
+`validation_findings.csv` and `validation_report.md`.
 
 这个目录用于做第一步简单实验验证，不依赖 PyTorch Geometric。实验目标不是直接追 SOTA，而是快速检查下面两个设计是否有信号：
 
@@ -289,3 +324,55 @@ CUDA_VISIBLE_DEVICES=0 python run_real_suite.py \
 
 GT result CSV files now include `gate_mean`, `gate_std`, gate range,
 local/global/mixed branch norms, and their mean cosine similarity.
+
+# Preference-routing diagnostic
+
+The preference-routing experiment tests whether the handcrafted reliability
+state predicts which frozen expert is correct. Training preference labels are
+generated with stratified out-of-fold expert predictions:
+
+- local correct, global wrong: local preference (`1`)
+- local wrong, global correct: global preference (`0`)
+- both correct or both wrong: ignored
+
+It compares `reliability_only`, `node_feature_only`, and `combined` routers.
+Primary metrics are preference ROC-AUC, balanced accuracy, and routing accuracy.
+Final routed node accuracy is reported only as a secondary metric.
+
+The real-data loader also supports the officially undirected heterophily
+benchmarks `Roman-empire`, `Amazon-ratings`, `Minesweeper`, `Tolokers`, and
+`Questions` through PyG's `HeterophilousGraphDataset`.
+
+Sanity run:
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python run_preference_routing_suite.py \
+  --datasets Chameleon Actor Roman-empire \
+  --runs 1 \
+  --oof-folds 3 \
+  --expert-epochs 100 \
+  --router-epochs 80 \
+  --patience 30 \
+  --data-root data \
+  --out-dir outputs/preference_routing_sanity \
+  --no-download \
+  --device cuda
+```
+
+Formal run:
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python run_preference_routing_suite.py \
+  --datasets Cora Citeseer Pubmed Chameleon Squirrel Actor \
+             Roman-empire Amazon-ratings Minesweeper \
+  --routers reliability_only node_feature_only combined \
+  --runs 10 \
+  --oof-folds 5 \
+  --expert-epochs 500 \
+  --router-epochs 300 \
+  --patience 100 \
+  --data-root data \
+  --out-dir outputs/preference_routing_full \
+  --no-download \
+  --device cuda
+```

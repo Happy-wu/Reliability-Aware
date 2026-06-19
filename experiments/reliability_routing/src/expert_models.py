@@ -19,7 +19,7 @@ EXPERT_MODELS = (
 
 
 class LocalExpert(nn.Module):
-    """Two-layer PyG GCN used by both the baseline and every fusion model."""
+    """Two-layer PyG GCN for one fixed graph and edge protocol per instance."""
 
     def __init__(
         self,
@@ -114,7 +114,7 @@ class NodeGate(nn.Module):
         self.reliability_encoder = ReliabilityEncoder(
             reliability_dim,
             hidden_dim,
-            dropout,
+            dropout=0.0,
         )
         self.logit_encoder = nn.Sequential(
             nn.Linear(out_dim * 2, hidden_dim),
@@ -127,6 +127,8 @@ class NodeGate(nn.Module):
             nn.Linear(hidden_dim, 1),
             nn.Sigmoid(),
         )
+        nn.init.zeros_(self.gate[-2].weight)
+        nn.init.zeros_(self.gate[-2].bias)
 
     def forward(
         self,
@@ -135,10 +137,13 @@ class NodeGate(nn.Module):
         local_logits: torch.Tensor,
         global_logits: torch.Tensor,
     ) -> torch.Tensor:
-        if not self.use_reliability:
-            reliability = torch.zeros_like(reliability)
         feature_h = self.feature_encoder(x)
-        reliability_h = self.reliability_encoder(reliability)
+        if self.use_reliability:
+            reliability_h = self.reliability_encoder(reliability)
+        else:
+            reliability_h = self.reliability_encoder(
+                torch.zeros_like(reliability)
+            )
         logit_h = self.logit_encoder(
             torch.cat([local_logits, global_logits], dim=-1)
         )
@@ -212,11 +217,21 @@ class ExpertFusionModel(nn.Module):
             self.latest_alpha = None
             return global_logits
 
+        if self.mode == "fixed_alpha" and self.fixed_alpha == 0.0:
+            global_logits = self.global_expert(x)
+            self.latest_local_logits = None
+            self.latest_global_logits = global_logits.detach()
+            self.latest_alpha = x.new_zeros((x.size(0), 1))
+            return global_logits
+
         local_logits = self.forward_local(x, edge_index)
         self.latest_local_logits = local_logits.detach()
         self.latest_alpha = None
         self.latest_global_logits = None
         if self.mode == "gcn_pyg":
+            return local_logits
+        if self.mode == "fixed_alpha" and self.fixed_alpha == 1.0:
+            self.latest_alpha = x.new_ones((x.size(0), 1))
             return local_logits
 
         global_logits = self.global_expert(x)
