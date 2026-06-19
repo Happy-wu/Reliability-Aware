@@ -339,6 +339,27 @@ It compares `reliability_only`, `node_feature_only`, and `combined` routers.
 Primary metrics are preference ROC-AUC, balanced accuracy, and routing accuracy.
 Final routed node accuracy is reported only as a secondary metric.
 
+Each trained router is evaluated with three hard-routing decision rules:
+
+- `fixed_0.5`: the raw sigmoid threshold.
+- `preference_threshold`: selected on validation preference balanced accuracy.
+- `utility_threshold`: selected on validation routed node accuracy after the
+  router checkpoint is fixed.
+
+Utility routing is compared against a validation-selected best single expert,
+a validation-selected fixed-alpha interpolation, and the test oracle union
+(diagnostic upper bound only).
+
+Two checkpoint variants are reported separately:
+
+- Preference-selected checkpoint plus post-hoc utility threshold.
+- Utility-selected checkpoint plus utility threshold.
+
+The utility threshold is conservative by default: thresholds within one
+validation node of the best accuracy are eligible, and the one that switches
+the fewest nodes away from the stronger validation expert is selected. Set
+`--utility-epsilon-nodes 0` for strict validation-accuracy maximization.
+
 The real-data loader also supports the officially undirected heterophily
 benchmarks `Roman-empire`, `Amazon-ratings`, `Minesweeper`, `Tolokers`, and
 `Questions` through PyG's `HeterophilousGraphDataset`.

@@ -83,6 +83,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--expert-epochs", type=int, default=500)
     parser.add_argument("--router-epochs", type=int, default=300)
     parser.add_argument("--patience", type=int, default=100)
+    parser.add_argument(
+        "--fixed-alphas",
+        nargs="+",
+        type=float,
+        default=[0.0, 0.25, 0.5, 0.75, 1.0],
+    )
+    parser.add_argument("--utility-epsilon-nodes", type=int, default=1)
     parser.add_argument("--device", choices=["cpu", "cuda"], default="cuda")
     parser.add_argument("--no-download", action="store_true")
     parser.add_argument("--force", action="store_true")
@@ -92,6 +99,10 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    if any(not 0.0 <= alpha <= 1.0 for alpha in args.fixed_alphas):
+        raise ValueError("--fixed-alphas values must be between 0 and 1")
+    if args.utility_epsilon_nodes < 0:
+        raise ValueError("--utility-epsilon-nodes must be non-negative")
     root = Path(__file__).resolve().parent
     data_root = resolve(root, args.data_root)
     out_dir = resolve(root, args.out_dir)
@@ -176,6 +187,10 @@ def main() -> None:
                 str(args.router_epochs),
                 "--patience",
                 str(args.patience),
+                "--fixed-alphas",
+                *[str(alpha) for alpha in args.fixed_alphas],
+                "--utility-epsilon-nodes",
+                str(args.utility_epsilon_nodes),
                 "--device",
                 args.device,
             ]
@@ -201,9 +216,20 @@ def main() -> None:
         rows.extend(read_csv(path))
     summary = summarize(rows)
     comparisons = compare_routers(rows, args.datasets, args.routers)
+    utility_comparisons = compare_utility_baselines(
+        rows,
+        args.datasets,
+        args.routers,
+    )
     write_csv(out_dir / "summary.csv", summary)
     write_csv(out_dir / "paired_comparisons.csv", comparisons)
-    write_report(out_dir / "analysis.md", summary, comparisons)
+    write_csv(out_dir / "utility_comparisons.csv", utility_comparisons)
+    write_report(
+        out_dir / "analysis.md",
+        summary,
+        comparisons,
+        utility_comparisons,
+    )
     print(f"analysis: {out_dir / 'analysis.md'}")
 
 
@@ -222,7 +248,28 @@ def summarize(rows):
                     "dataset": dataset,
                     "router": router,
                     "n": len(selected),
-                    "successful_n": sum(row.get("status") == "ok" for row in selected),
+                    "successful_n": sum(
+                        row.get("status", "").startswith("ok")
+                        for row in selected
+                    ),
+                    "preference_valid_n": sum(
+                        is_finite_field(row, "test_preference_auc")
+                        for row in selected
+                    ),
+                    "posthoc_utility_valid_n": sum(
+                        is_finite_field(
+                            row,
+                            "test_utility_routed_node_accuracy",
+                        )
+                        for row in selected
+                    ),
+                    "utility_valid_n": sum(
+                        is_finite_field(
+                            row,
+                            "test_utility_checkpoint_routed_node_accuracy",
+                        )
+                        for row in selected
+                    ),
                     "status_counts": status_counts(selected),
                     "test_preference_count_mean": mean(selected, "test_preference_count"),
                     "test_preference_auc_mean": mean(selected, "test_preference_auc"),
@@ -232,9 +279,30 @@ def summarize(rows):
                     "test_preference_auc_ci95_high": mean(selected, "test_preference_auc")
                     + ci95(finite_values(selected, "test_preference_auc")),
                     "decision_threshold_mean": mean(selected, "decision_threshold"),
+                    "utility_threshold_mean": mean(selected, "utility_threshold"),
                     "test_balanced_accuracy_mean": mean(selected, "test_balanced_accuracy"),
                     "test_routing_accuracy_mean": mean(selected, "test_routing_accuracy"),
                     "test_routed_node_accuracy_mean": mean(selected, "test_routed_node_accuracy"),
+                    "test_fixed_050_routed_node_accuracy_mean": mean(
+                        selected,
+                        "test_fixed_050_routed_node_accuracy",
+                    ),
+                    "test_utility_routed_node_accuracy_mean": mean(
+                        selected,
+                        "test_utility_routed_node_accuracy",
+                    ),
+                    "test_utility_switch_rate_mean": mean(
+                        selected,
+                        "test_utility_switch_rate",
+                    ),
+                    "test_utility_checkpoint_routed_node_accuracy_mean": mean(
+                        selected,
+                        "test_utility_checkpoint_routed_node_accuracy",
+                    ),
+                    "test_utility_checkpoint_switch_rate_mean": mean(
+                        selected,
+                        "test_utility_checkpoint_switch_rate",
+                    ),
                     "test_majority_routing_accuracy_mean": mean(
                         selected,
                         "test_majority_routing_accuracy",
@@ -246,6 +314,22 @@ def summarize(rows):
                     "test_majority_routed_node_accuracy_mean": mean(
                         selected,
                         "test_majority_routed_node_accuracy",
+                    ),
+                    "validation_best_expert_test_accuracy_mean": mean(
+                        selected,
+                        "validation_best_expert_test_accuracy",
+                    ),
+                    "validation_selected_fixed_alpha_mean": mean(
+                        selected,
+                        "validation_selected_fixed_alpha",
+                    ),
+                    "validation_selected_fixed_alpha_test_accuracy_mean": mean(
+                        selected,
+                        "validation_selected_fixed_alpha_test_accuracy",
+                    ),
+                    "test_oracle_union_accuracy_mean": mean(
+                        selected,
+                        "test_oracle_union_accuracy",
                     ),
                 }
             )
@@ -280,6 +364,73 @@ def compare_routers(rows, datasets, routers):
     return output
 
 
+def compare_utility_baselines(rows, datasets, routers):
+    output = []
+    for dataset in datasets:
+        for router in routers:
+            for baseline_field, label in (
+                (
+                    "validation_best_expert_test_accuracy",
+                    "validation-selected best expert",
+                ),
+                (
+                    "validation_selected_fixed_alpha_test_accuracy",
+                    "validation-selected fixed alpha",
+                ),
+            ):
+                stats = paired_field_difference(
+                    rows,
+                    dataset,
+                    router,
+                    "test_utility_routed_node_accuracy",
+                    baseline_field,
+                )
+                output.append(
+                    {
+                        "dataset": dataset,
+                        "router": router,
+                        "comparison": f"utility routing - {label}",
+                        **stats,
+                    }
+                )
+                checkpoint_stats = paired_field_difference(
+                    rows,
+                    dataset,
+                    router,
+                    "test_utility_checkpoint_routed_node_accuracy",
+                    baseline_field,
+                )
+                output.append(
+                    {
+                        "dataset": dataset,
+                        "router": router,
+                        "comparison": (
+                            f"utility-checkpoint routing - {label}"
+                        ),
+                        **checkpoint_stats,
+                    }
+                )
+    return output
+
+
+def paired_field_difference(
+    rows,
+    dataset,
+    router,
+    left_field,
+    right_field,
+):
+    differences = []
+    for row in rows:
+        if row["dataset"] != dataset or row["router"] != router:
+            continue
+        left = float(row[left_field])
+        right = float(row[right_field])
+        if math.isfinite(left) and math.isfinite(right):
+            differences.append(left - right)
+    return difference_stats(differences)
+
+
 def paired_stats(rows, dataset, left, right, metric):
     left_values = run_values(rows, dataset, left, metric)
     right_values = run_values(rows, dataset, right, metric)
@@ -289,6 +440,10 @@ def paired_stats(rows, dataset, left, right, metric):
         for key in keys
         if math.isfinite(left_values[key]) and math.isfinite(right_values[key])
     ]
+    return difference_stats(differences)
+
+
+def difference_stats(differences):
     if not differences:
         return {
             "n": 0,
@@ -312,31 +467,39 @@ def paired_stats(rows, dataset, left, right, metric):
     }
 
 
-def write_report(path, summary, comparisons):
+def write_report(path, summary, comparisons, utility_comparisons):
     lines = [
         "# Preference Routing Diagnostic",
         "",
         "Primary question: can reliability predict which frozen expert is correct?",
         "",
+        "`P/H/U/Total` denotes preference-valid, post-hoc-utility-valid, "
+        "utility-checkpoint-valid, and total runs.",
+        "",
         "## Summary",
         "",
-        "| Dataset | Router | Valid/Total | Status | Preference nodes | AUC [95% CI] | Threshold | Balanced acc | Routing acc | Majority routing | Routed node acc | Majority node acc |",
-        "|---|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|",
+        "| Dataset | Router | P/H/U/Total | Status | AUC [95% CI] | Fixed-0.5 routed acc | Pref-threshold routed acc | Post-hoc utility acc | Utility-checkpoint acc | Best expert | Fixed alpha | Oracle | Utility switch |",
+        "|---|---|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for row in summary:
         lines.append(
             f"| {row['dataset']} | {row['router']} | "
-            f"{row['successful_n']}/{row['n']} | {row['status_counts']} | "
-            f"{fmt(row['test_preference_count_mean'], 1)} | "
+            f"{row['preference_valid_n']}/"
+            f"{row['posthoc_utility_valid_n']}/"
+            f"{row['utility_valid_n']}/{row['n']} | "
+            f"{row['status_counts']} | "
             f"{fmt(row['test_preference_auc_mean'])} "
             f"[{fmt(row['test_preference_auc_ci95_low'])}, "
             f"{fmt(row['test_preference_auc_ci95_high'])}] | "
-            f"{fmt(row['decision_threshold_mean'])} | "
-            f"{fmt(row['test_balanced_accuracy_mean'])} | "
-            f"{fmt(row['test_routing_accuracy_mean'])} | "
-            f"{fmt(row['test_majority_routing_accuracy_mean'])} | "
+            f"{fmt(row['test_fixed_050_routed_node_accuracy_mean'])} | "
             f"{fmt(row['test_routed_node_accuracy_mean'])} | "
-            f"{fmt(row['test_majority_routed_node_accuracy_mean'])} |"
+            f"{fmt(row['test_utility_routed_node_accuracy_mean'])} | "
+            f"{fmt(row['test_utility_checkpoint_routed_node_accuracy_mean'])} | "
+            f"{fmt(row['validation_best_expert_test_accuracy_mean'])} | "
+            f"{fmt(row['validation_selected_fixed_alpha_test_accuracy_mean'])} "
+            f"(a={fmt(row['validation_selected_fixed_alpha_mean'], 2)}) | "
+            f"{fmt(row['test_oracle_union_accuracy_mean'])} | "
+            f"{fmt(row['test_utility_switch_rate_mean'])} |"
         )
     lines.extend(
         [
@@ -357,11 +520,29 @@ def write_report(path, summary, comparisons):
     lines.extend(
         [
             "",
+            "## Utility Comparisons",
+            "",
+            "| Dataset | Router | Comparison | N | Delta | 95% CI | W/T/L |",
+            "|---|---|---|---:|---:|---:|---:|",
+        ]
+    )
+    for row in utility_comparisons:
+        lines.append(
+            f"| {row['dataset']} | {row['router']} | {row['comparison']} | "
+            f"{row['n']} | {fmt(row['mean_delta'])} | "
+            f"[{fmt(row['ci95_low'])}, {fmt(row['ci95_high'])}] | "
+            f"{row['wins']}/{row['ties']}/{row['losses']} |"
+        )
+    lines.extend(
+        [
+            "",
             "## Decision Rule",
             "",
-            "- Continue reliability routing only if reliability-only AUC is clearly above 0.5 and combined reliably exceeds node-feature-only on at least two undirected heterophilous datasets.",
-            "- Treat routed node accuracy as secondary; preference AUC and balanced accuracy diagnose whether the routing signal exists.",
+            "- Preference evidence: reliability-only AUC should be clearly above 0.5 and combined should exceed node-feature-only.",
+            "- Utility evidence: utility-threshold routing should exceed the validation-selected best expert or fixed-alpha baseline with a paired CI above zero.",
             "- Training preference labels are generated from out-of-fold expert predictions to avoid in-sample expert leakage.",
+            "- Post-hoc utility uses a preference-selected checkpoint; utility-checkpoint routing separately selects the epoch by validation routed accuracy.",
+            "- Utility thresholds are conservative: near-optimal thresholds prefer fewer switches away from the stronger validation expert.",
         ]
     )
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -381,10 +562,21 @@ def result_complete(path, runs, routers, dataset, args, data_fingerprint):
         "seed",
         "oof_folds",
         "decision_threshold",
+        "preference_threshold",
+        "utility_threshold",
+        "test_fixed_050_routed_node_accuracy",
+        "test_utility_routed_node_accuracy",
+        "test_utility_switch_rate",
+        "test_utility_checkpoint_routed_node_accuracy",
+        "test_utility_checkpoint_switch_rate",
         "validation_majority_choice",
         "test_majority_routing_accuracy",
         "test_majority_balanced_accuracy",
         "test_majority_routed_node_accuracy",
+        "validation_best_expert_test_accuracy",
+        "validation_selected_fixed_alpha",
+        "validation_selected_fixed_alpha_test_accuracy",
+        "test_oracle_union_accuracy",
         "reliability_components",
         "normalize_features",
         "rw_steps",
@@ -399,6 +591,8 @@ def result_complete(path, runs, routers, dataset, args, data_fingerprint):
         "expert_epochs",
         "router_epochs",
         "patience",
+        "fixed_alphas",
+        "utility_epsilon_nodes",
         "data_fingerprint",
         "preprocess_code_hash",
     }
@@ -424,6 +618,8 @@ def result_complete(path, runs, routers, dataset, args, data_fingerprint):
         "expert_epochs": str(args.expert_epochs),
         "router_epochs": str(args.router_epochs),
         "patience": str(args.patience),
+        "fixed_alphas": ",".join(str(alpha) for alpha in args.fixed_alphas),
+        "utility_epsilon_nodes": str(args.utility_epsilon_nodes),
         "data_fingerprint": data_fingerprint,
     }
     if any(
@@ -455,6 +651,13 @@ def run_values(rows, dataset, router, metric):
 def finite_values(rows, field):
     values = [float(row[field]) for row in rows]
     return [value for value in values if math.isfinite(value)]
+
+
+def is_finite_field(row, field):
+    try:
+        return math.isfinite(float(row[field]))
+    except (KeyError, TypeError, ValueError):
+        return False
 
 
 def mean(rows, field):
@@ -525,6 +728,8 @@ def suite_config(args, root, data_root, expert_cache, preference_cache):
         "expert_epochs": args.expert_epochs,
         "router_epochs": args.router_epochs,
         "patience": args.patience,
+        "fixed_alphas": args.fixed_alphas,
+        "utility_epsilon_nodes": args.utility_epsilon_nodes,
         "device": args.device,
     }
 

@@ -31,12 +31,17 @@ from src.preference_routing import (
     constant_preference_metrics,
     constant_routed_node_accuracy,
     empty_preference_metrics,
+    interpolated_node_accuracy,
     majority_preference_choice,
+    oracle_union_accuracy,
     preference_label_counts,
     preference_metrics,
     preference_targets,
     routed_node_accuracy,
+    routing_switch_rate,
+    select_fixed_alpha,
     select_preference_threshold,
+    select_utility_threshold,
 )
 from src.real_data import (
     EDGE_PROTOCOLS,
@@ -86,6 +91,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--expert-epochs", type=int, default=500)
     parser.add_argument("--router-epochs", type=int, default=300)
     parser.add_argument("--patience", type=int, default=100)
+    parser.add_argument(
+        "--fixed-alphas",
+        nargs="+",
+        type=float,
+        default=[0.0, 0.25, 0.5, 0.75, 1.0],
+    )
+    parser.add_argument("--utility-epsilon-nodes", type=int, default=1)
     parser.add_argument("--device", choices=["cpu", "cuda"], default="cuda")
     return parser.parse_args()
 
@@ -94,6 +106,10 @@ def main() -> None:
     args = parse_args()
     if args.oof_folds < 2:
         raise ValueError("--oof-folds must be at least 2")
+    if any(not 0.0 <= alpha <= 1.0 for alpha in args.fixed_alphas):
+        raise ValueError("--fixed-alphas values must be between 0 and 1")
+    if args.utility_epsilon_nodes < 0:
+        raise ValueError("--utility-epsilon-nodes must be non-negative")
     root = Path(__file__).resolve().parent
     data_root = resolve(root, args.data_root)
     out_dir = resolve(root, args.out_dir)
@@ -249,6 +265,44 @@ def run_one(args, base_data, device, split: int, seed: int) -> list[dict[str, ob
         data.y,
         data.test_mask,
     )
+    local_val_accuracy = node_accuracy(
+        full_local_logits,
+        data.y,
+        data.val_mask,
+    )
+    global_val_accuracy = node_accuracy(
+        full_global_logits,
+        data.y,
+        data.val_mask,
+    )
+    best_expert_choice = int(local_val_accuracy >= global_val_accuracy)
+    best_expert_test_accuracy = constant_routed_node_accuracy(
+        best_expert_choice,
+        full_local_logits,
+        full_global_logits,
+        data.y,
+        data.test_mask,
+    )
+    fixed_alpha_result = select_fixed_alpha(
+        args.fixed_alphas,
+        full_local_logits,
+        full_global_logits,
+        data.y,
+        data.val_mask,
+    )
+    fixed_alpha_test_accuracy = interpolated_node_accuracy(
+        fixed_alpha_result["alpha"],
+        full_local_logits,
+        full_global_logits,
+        data.y,
+        data.test_mask,
+    )
+    test_oracle_union_accuracy = oracle_union_accuracy(
+        full_local_logits,
+        full_global_logits,
+        data.y,
+        data.test_mask,
+    )
 
     rows = []
     for index, router_name in enumerate(args.routers):
@@ -265,45 +319,154 @@ def run_one(args, base_data, device, split: int, seed: int) -> list[dict[str, ob
             data,
             train_targets,
             val_targets,
+            full_local_logits,
+            full_global_logits,
             args,
         )
-        if result["status"] == "ok":
-            threshold = float(result["decision_threshold"])
+        if result["status"].startswith("ok"):
             router.eval()
             with torch.no_grad():
                 router_logits = router(data.x, data.reliability_gate)
-            train_metrics = preference_metrics(
+            utility_result = select_utility_threshold(
                 router_logits,
-                train_targets,
-                data.train_mask,
-                threshold,
-            )
-            val_metrics = preference_metrics(
-                router_logits,
-                val_targets,
+                full_local_logits,
+                full_global_logits,
+                data.y,
                 data.val_mask,
-                threshold,
+                epsilon_nodes=args.utility_epsilon_nodes,
             )
-            test_metrics = preference_metrics(
+            utility_threshold = float(utility_result["threshold"])
+            preference_threshold = float(result["decision_threshold"])
+            if math.isfinite(preference_threshold):
+                train_metrics = preference_metrics(
+                    router_logits,
+                    train_targets,
+                    data.train_mask,
+                    preference_threshold,
+                )
+                val_metrics = preference_metrics(
+                    router_logits,
+                    val_targets,
+                    data.val_mask,
+                    preference_threshold,
+                )
+                test_metrics = preference_metrics(
+                    router_logits,
+                    test_targets,
+                    data.test_mask,
+                    preference_threshold,
+                )
+                preference_test_routed_accuracy = routed_node_accuracy(
+                    router_logits,
+                    full_local_logits,
+                    full_global_logits,
+                    data.y,
+                    data.test_mask,
+                    preference_threshold,
+                )
+            else:
+                train_metrics = unavailable_metrics(
+                    train_targets,
+                    data.train_mask,
+                )
+                val_metrics = unavailable_metrics(
+                    val_targets,
+                    data.val_mask,
+                )
+                test_metrics = unavailable_metrics(
+                    test_targets,
+                    data.test_mask,
+                )
+                preference_test_routed_accuracy = math.nan
+            fixed_test_metrics = preference_metrics(
                 router_logits,
                 test_targets,
                 data.test_mask,
-                threshold,
+                0.5,
             )
-            test_routed_accuracy = routed_node_accuracy(
+            fixed_test_routed_accuracy = routed_node_accuracy(
                 router_logits,
                 full_local_logits,
                 full_global_logits,
                 data.y,
                 data.test_mask,
-                threshold,
+                0.5,
+            )
+            utility_test_metrics = preference_metrics(
+                router_logits,
+                test_targets,
+                data.test_mask,
+                utility_threshold,
+            )
+            utility_test_routed_accuracy = routed_node_accuracy(
+                router_logits,
+                full_local_logits,
+                full_global_logits,
+                data.y,
+                data.test_mask,
+                utility_threshold,
+            )
+            utility_test_switch_rate = routing_switch_rate(
+                router_logits,
+                data.test_mask,
+                utility_threshold,
+                int(utility_result["default_choice"]),
             )
         else:
-            threshold = math.nan
+            preference_threshold = math.nan
+            utility_threshold = math.nan
             train_metrics = unavailable_metrics(train_targets, data.train_mask)
             val_metrics = unavailable_metrics(val_targets, data.val_mask)
             test_metrics = unavailable_metrics(test_targets, data.test_mask)
-            test_routed_accuracy = math.nan
+            preference_test_routed_accuracy = math.nan
+            fixed_test_metrics = unavailable_metrics(
+                test_targets,
+                data.test_mask,
+            )
+            fixed_test_routed_accuracy = math.nan
+            utility_test_metrics = unavailable_metrics(
+                test_targets,
+                data.test_mask,
+            )
+            utility_test_routed_accuracy = math.nan
+            utility_test_switch_rate = math.nan
+            utility_result = {
+                "validation_accuracy": math.nan,
+                "validation_best_accuracy": math.nan,
+                "validation_switch_rate": math.nan,
+                "default_choice": -1,
+            }
+        if result["status"].startswith("ok"):
+            preference_state = copy.deepcopy(router.state_dict())
+            router.load_state_dict(result["utility_state_dict"])
+            router.eval()
+            with torch.no_grad():
+                utility_checkpoint_logits = router(
+                    data.x,
+                    data.reliability_gate,
+                )
+            utility_checkpoint_threshold = float(
+                result["utility_decision_threshold"]
+            )
+            utility_checkpoint_test_accuracy = routed_node_accuracy(
+                utility_checkpoint_logits,
+                full_local_logits,
+                full_global_logits,
+                data.y,
+                data.test_mask,
+                utility_checkpoint_threshold,
+            )
+            utility_checkpoint_switch_rate = routing_switch_rate(
+                utility_checkpoint_logits,
+                data.test_mask,
+                utility_checkpoint_threshold,
+                int(result["utility_default_choice"]),
+            )
+            router.load_state_dict(preference_state)
+        else:
+            utility_checkpoint_threshold = math.nan
+            utility_checkpoint_test_accuracy = math.nan
+            utility_checkpoint_switch_rate = math.nan
         rows.append(
             {
                 "dataset": args.dataset,
@@ -318,11 +481,60 @@ def run_one(args, base_data, device, split: int, seed: int) -> list[dict[str, ob
                 "best_epoch": result["epoch"],
                 "best_val_balanced_accuracy": result["balanced_accuracy"],
                 "best_val_preference_auc": result["preference_auc"],
-                "decision_threshold": threshold,
+                "decision_threshold": preference_threshold,
+                "preference_threshold": preference_threshold,
+                "utility_threshold": utility_threshold,
+                "utility_default_choice": choice_name(
+                    int(utility_result["default_choice"])
+                ),
+                "utility_validation_accuracy": utility_result[
+                    "validation_accuracy"
+                ],
+                "utility_validation_best_accuracy": utility_result[
+                    "validation_best_accuracy"
+                ],
+                "utility_validation_switch_rate": utility_result[
+                    "validation_switch_rate"
+                ],
+                "utility_epsilon_nodes": args.utility_epsilon_nodes,
                 **prefix_metrics("train", train_metrics),
                 **prefix_metrics("val", val_metrics),
                 **prefix_metrics("test", test_metrics),
-                "test_routed_node_accuracy": test_routed_accuracy,
+                "test_routed_node_accuracy": preference_test_routed_accuracy,
+                "test_fixed_050_balanced_accuracy": fixed_test_metrics[
+                    "balanced_accuracy"
+                ],
+                "test_fixed_050_routing_accuracy": fixed_test_metrics[
+                    "routing_accuracy"
+                ],
+                "test_fixed_050_routed_node_accuracy": (
+                    fixed_test_routed_accuracy
+                ),
+                "test_utility_balanced_accuracy": utility_test_metrics[
+                    "balanced_accuracy"
+                ],
+                "test_utility_routing_accuracy": utility_test_metrics[
+                    "routing_accuracy"
+                ],
+                "test_utility_routed_node_accuracy": (
+                    utility_test_routed_accuracy
+                ),
+                "test_utility_switch_rate": utility_test_switch_rate,
+                "utility_checkpoint_epoch": result[
+                    "utility_checkpoint_epoch"
+                ],
+                "utility_checkpoint_threshold": (
+                    utility_checkpoint_threshold
+                ),
+                "utility_checkpoint_validation_accuracy": result[
+                    "utility_checkpoint_validation_accuracy"
+                ],
+                "test_utility_checkpoint_routed_node_accuracy": (
+                    utility_checkpoint_test_accuracy
+                ),
+                "test_utility_checkpoint_switch_rate": (
+                    utility_checkpoint_switch_rate
+                ),
                 "validation_majority_choice": (
                     "local" if majority_choice == 1 else "global"
                     if majority_choice == 0
@@ -337,6 +549,24 @@ def run_one(args, base_data, device, split: int, seed: int) -> list[dict[str, ob
                 "test_majority_routed_node_accuracy": (
                     majority_test_routed_accuracy
                 ),
+                "validation_best_expert_choice": choice_name(
+                    best_expert_choice
+                ),
+                "validation_best_expert_accuracy": max(
+                    local_val_accuracy,
+                    global_val_accuracy,
+                ),
+                "validation_best_expert_test_accuracy": (
+                    best_expert_test_accuracy
+                ),
+                "validation_selected_fixed_alpha": fixed_alpha_result["alpha"],
+                "validation_selected_fixed_alpha_accuracy": (
+                    fixed_alpha_result["validation_accuracy"]
+                ),
+                "validation_selected_fixed_alpha_test_accuracy": (
+                    fixed_alpha_test_accuracy
+                ),
+                "test_oracle_union_accuracy": test_oracle_union_accuracy,
                 "local_expert_test_accuracy": node_accuracy(
                     full_local_logits,
                     data.y,
@@ -361,6 +591,9 @@ def run_one(args, base_data, device, split: int, seed: int) -> list[dict[str, ob
                 "expert_epochs": args.expert_epochs,
                 "router_epochs": args.router_epochs,
                 "patience": args.patience,
+                "fixed_alphas": ",".join(
+                    str(alpha) for alpha in args.fixed_alphas
+                ),
                 "data_fingerprint": args.data_fingerprint,
                 "preprocess_code_hash": args.preprocess_code_hash,
                 "oof_cache_hit": oof_stats["cache_hit"],
@@ -515,7 +748,15 @@ def oof_cache_path(args, split: int, seed: int) -> tuple[Path, str]:
     return path, cache_key
 
 
-def train_router(router, data, train_targets, val_targets, args):
+def train_router(
+    router,
+    data,
+    train_targets,
+    val_targets,
+    local_logits,
+    global_logits,
+    args,
+):
     train_selected = data.train_mask & (train_targets >= 0)
     if int(train_selected.sum()) < 2:
         return unavailable_router_result(
@@ -532,14 +773,10 @@ def train_router(router, data, train_targets, val_targets, args):
             f"global={negatives}",
         )
     val_counts = preference_label_counts(val_targets, data.val_mask)
-    if (
+    validation_has_two_classes = not (
         val_counts["local_preference_count"] == 0
         or val_counts["global_preference_count"] == 0
-    ):
-        return unavailable_router_result(
-            "insufficient_validation_labels",
-            "validation preference labels do not contain both classes",
-        )
+    )
     positive_weight = torch.tensor(
         negatives / positives,
         device=data.x.device,
@@ -549,8 +786,23 @@ def train_router(router, data, train_targets, val_targets, args):
         lr=args.lr,
         weight_decay=args.weight_decay,
     )
-    best = evaluate_router(router, data, val_targets, epoch=-1)
+    best = evaluate_router(
+        router,
+        data,
+        val_targets,
+        data.val_mask,
+        epoch=-1,
+    )
     best_state = copy.deepcopy(router.state_dict())
+    utility_best = evaluate_utility_checkpoint(
+        router,
+        data,
+        local_logits,
+        global_logits,
+        epoch=-1,
+        epsilon_nodes=args.utility_epsilon_nodes,
+    )
+    utility_best_state = copy.deepcopy(router.state_dict())
     stale = 0
     for epoch in range(args.router_epochs):
         router.train()
@@ -564,46 +816,122 @@ def train_router(router, data, train_targets, val_targets, args):
         loss.backward()
         optimizer.step()
 
-        result = evaluate_router(router, data, val_targets, epoch)
+        result = evaluate_router(
+            router,
+            data,
+            val_targets,
+            data.val_mask,
+            epoch,
+        )
+        utility_result = evaluate_utility_checkpoint(
+            router,
+            data,
+            local_logits,
+            global_logits,
+            epoch,
+            epsilon_nodes=args.utility_epsilon_nodes,
+        )
+        improved = False
         if router_score(result) > router_score(best):
             best = result
             best_state = copy.deepcopy(router.state_dict())
-            stale = 0
-        else:
-            stale += 1
+            improved = True
+        if utility_checkpoint_score(utility_result) > utility_checkpoint_score(
+            utility_best
+        ):
+            utility_best = utility_result
+            utility_best_state = copy.deepcopy(router.state_dict())
+            improved = True
+        stale = 0 if improved else stale + 1
         if stale >= args.patience:
             break
     router.load_state_dict(best_state)
-    return {"status": "ok", "status_detail": "", **best}
+    status = "ok" if validation_has_two_classes else "ok_utility_only"
+    detail = (
+        ""
+        if validation_has_two_classes
+        else "validation preference labels contain one class; "
+        "preference checkpoint selected by validation BCE"
+    )
+    return {
+        "status": status,
+        "status_detail": detail,
+        **best,
+        "utility_state_dict": utility_best_state,
+        "utility_checkpoint_epoch": utility_best["epoch"],
+        "utility_decision_threshold": utility_best["threshold"],
+        "utility_checkpoint_validation_accuracy": utility_best[
+            "validation_accuracy"
+        ],
+        "utility_default_choice": utility_best["default_choice"],
+    }
 
 
-def evaluate_router(router, data, targets, epoch: int):
+def evaluate_router(router, data, targets, mask, epoch: int):
     router.eval()
     with torch.no_grad():
         logits = router(data.x, data.reliability_gate)
     threshold = select_preference_threshold(
         logits,
         targets,
-        data.val_mask,
+        mask,
     )
+    metrics = preference_metrics(logits, targets, mask, threshold)
+    selected = mask & (targets >= 0)
+    if int(selected.sum()):
+        validation_loss = float(
+            F.binary_cross_entropy_with_logits(
+                logits[selected],
+                targets[selected].float(),
+            ).cpu()
+        )
+    else:
+        validation_loss = math.nan
     return {
         "epoch": epoch,
         "decision_threshold": threshold,
-        **preference_metrics(
-            logits,
-            targets,
-            data.val_mask,
-            threshold,
-        ),
+        "validation_loss": validation_loss,
+        **metrics,
     }
 
 
-def router_score(result) -> tuple[float, float]:
+def router_score(result) -> tuple[float, float, float]:
     balanced = float(result["balanced_accuracy"])
     auc = float(result["preference_auc"])
+    if math.isfinite(balanced):
+        return (1.0, balanced, auc if math.isfinite(auc) else -math.inf)
+    loss = float(result["validation_loss"])
+    return (0.0, -loss if math.isfinite(loss) else -math.inf, -math.inf)
+
+
+def evaluate_utility_checkpoint(
+    router,
+    data,
+    local_logits,
+    global_logits,
+    epoch: int,
+    epsilon_nodes: int,
+):
+    router.eval()
+    with torch.no_grad():
+        logits = router(data.x, data.reliability_gate)
+    result = select_utility_threshold(
+        logits,
+        local_logits,
+        global_logits,
+        data.y,
+        data.val_mask,
+        epsilon_nodes=epsilon_nodes,
+    )
+    return {"epoch": epoch, **result}
+
+
+def utility_checkpoint_score(result):
+    accuracy = float(result["validation_accuracy"])
+    switch_rate = float(result["validation_switch_rate"])
     return (
-        balanced if math.isfinite(balanced) else -math.inf,
-        auc if math.isfinite(auc) else -math.inf,
+        accuracy if math.isfinite(accuracy) else -math.inf,
+        -switch_rate if math.isfinite(switch_rate) else -math.inf,
     )
 
 
@@ -634,11 +962,19 @@ def unavailable_router_result(status: str, detail: str):
         "balanced_accuracy": math.nan,
         "preference_auc": math.nan,
         "decision_threshold": math.nan,
+        "utility_checkpoint_epoch": -1,
+        "utility_decision_threshold": math.nan,
+        "utility_checkpoint_validation_accuracy": math.nan,
+        "utility_default_choice": -1,
     }
 
 
 def node_accuracy(logits, y, mask) -> float:
     return float((logits[mask].argmax(dim=-1) == y[mask]).float().mean())
+
+
+def choice_name(choice: int) -> str:
+    return "local" if choice == 1 else "global" if choice == 0 else "unavailable"
 
 
 def finite_mean(rows, field: str) -> float:
@@ -649,6 +985,8 @@ def finite_mean(rows, field: str) -> float:
 
 def write_csv(path: Path, rows: list[dict[str, object]]) -> None:
     with path.open("w", newline="", encoding="utf-8") as handle:
+        if not rows:
+            return
         writer = csv.DictWriter(handle, fieldnames=list(rows[0].keys()))
         writer.writeheader()
         writer.writerows(rows)

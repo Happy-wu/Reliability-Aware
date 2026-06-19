@@ -1,0 +1,64 @@
+{
+  "code_fingerprint": "044ab598752860594dd1c7de1cad61d0764a70be3de0a792593da30d95ae7210",
+  "datasets": [
+    "Cora",
+    "Citeseer",
+    "Pubmed",
+    "Chameleon",
+    "Squirrel",
+    "Actor",
+    "Roman-empire",
+    "Amazon-ratings",
+    "Minesweeper"
+  ],
+  "routers": [
+    "reliability_only",
+    "node_feature_only",
+    "combined"
+  ],
+  "runs": 10,
+  "oof_folds": 5,
+  "edge_protocol": "undirected",
+  "data_root": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data",
+  "expert_cache_dir": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/outputs/utility_routing_full_v3/_expert_cache",
+  "preference_cache_dir": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/outputs/utility_routing_full_v3/_preference_cache",
+  "data_fingerprints": {
+    "Cora": "b1b454ab1e4565619c24ee5251bb8a356262a72fbbc91d3875917dbfe4026068",
+    "Citeseer": "5fe85bd5adea457ee0f7a515b045f6f3383f2ff197fabe04843f371fbce7707b",
+    "Pubmed": "4795d40bde3d1d8757eeac0e3d66b3ec4c65ed4551bfa7cdbd84401a1e3417d9",
+    "Chameleon": "abec22f7a6e6818e16d1c945b3e711867850e016842f545f7a0b18cdff6376fd",
+    "Squirrel": "ac22b882828dbbd36263f4c827c77aa0795a6bd7f65b00c41b0e235875f7978d",
+    "Actor": "b9e1e067010d32c1abc894d5b53684da37fe0c3000d6c6089eb99475573861a0",
+    "Roman-empire": "6c90251bafa0f69081c84b9e964786d57aac3b7be62fa376f64393b6cb87e624",
+    "Amazon-ratings": "41ca1f5d24e0096fbef58b0a50293e29950dbf0663fc652318997c8cb1f51379",
+    "Minesweeper": "bc9ce8460d0bd5cf0eafdbd10bc072ab8fb6095b8903fed262cd5be2d3061fba"
+  },
+  "reliability_components": [
+    "degree",
+    "local_similarity",
+    "neighbor_variance",
+    "rwse"
+  ],
+  "normalize_features": true,
+  "rw_steps": 4,
+  "rw_samples": 128,
+  "rw_seed": 0,
+  "hidden_dim": 64,
+  "num_layers": 2,
+  "num_heads": 4,
+  "dropout": 0.3,
+  "lr": 0.003,
+  "weight_decay": 0.0001,
+  "expert_epochs": 300,
+  "router_epochs": 200,
+  "patience": 60,
+  "fixed_alphas": [
+    0.0,
+    0.25,
+    0.5,
+    0.75,
+    1.0
+  ],
+  "utility_epsilon_nodes": 1,
+  "device": "cuda"
+}

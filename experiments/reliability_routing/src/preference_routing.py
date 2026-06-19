@@ -130,6 +130,80 @@ def select_preference_threshold(
     return float(candidates[np.argmin(np.abs(candidates - 0.5))])
 
 
+def select_utility_threshold(
+    router_logits: torch.Tensor,
+    local_logits: torch.Tensor,
+    global_logits: torch.Tensor,
+    y: torch.Tensor,
+    mask: torch.Tensor,
+    epsilon_nodes: int = 1,
+) -> dict[str, float | int]:
+    """Select a conservative near-optimal hard-routing threshold."""
+    if epsilon_nodes < 0:
+        raise ValueError("epsilon_nodes must be non-negative")
+    score = router_logits[mask].sigmoid().detach().cpu().numpy()
+    local_correct = (
+        local_logits[mask].argmax(dim=-1) == y[mask]
+    ).detach().cpu().numpy().astype(np.int64)
+    global_correct = (
+        global_logits[mask].argmax(dim=-1) == y[mask]
+    ).detach().cpu().numpy().astype(np.int64)
+    if score.size == 0:
+        return {
+            "threshold": math.nan,
+            "validation_accuracy": math.nan,
+            "validation_best_accuracy": math.nan,
+            "validation_switch_rate": math.nan,
+            "default_choice": -1,
+            "epsilon_nodes": epsilon_nodes,
+        }
+
+    order = np.argsort(-score, kind="stable")
+    sorted_score = score[order]
+    utility_delta = local_correct[order] - global_correct[order]
+    cumulative_delta = np.concatenate(
+        [np.zeros(1, dtype=np.int64), np.cumsum(utility_delta)]
+    )
+    possible_k = [0]
+    possible_k.extend(
+        index
+        for index in range(1, score.size)
+        if sorted_score[index - 1] > sorted_score[index]
+    )
+    possible_k.append(score.size)
+    possible_k = np.asarray(possible_k, dtype=np.int64)
+
+    correct_counts = int(global_correct.sum()) + cumulative_delta[possible_k]
+    best_count = int(correct_counts.max())
+    eligible_k = possible_k[correct_counts >= best_count - epsilon_nodes]
+    default_choice = int(local_correct.mean() >= global_correct.mean())
+    switch_counts = (
+        eligible_k if default_choice == 0 else score.size - eligible_k
+    )
+    selected_k = int(eligible_k[np.argmin(switch_counts)])
+    selected_count = int(
+        correct_counts[np.nonzero(possible_k == selected_k)[0][0]]
+    )
+
+    if selected_k == 0:
+        threshold = float(np.nextafter(1.0, 2.0))
+    elif selected_k == score.size:
+        threshold = 0.0
+    else:
+        threshold = float(
+            (sorted_score[selected_k - 1] + sorted_score[selected_k]) / 2.0
+        )
+    switch_count = selected_k if default_choice == 0 else score.size - selected_k
+    return {
+        "threshold": threshold,
+        "validation_accuracy": selected_count / score.size,
+        "validation_best_accuracy": best_count / score.size,
+        "validation_switch_rate": switch_count / score.size,
+        "default_choice": default_choice,
+        "epsilon_nodes": epsilon_nodes,
+    }
+
+
 def majority_preference_choice(
     targets: torch.Tensor,
     mask: torch.Tensor,
@@ -194,6 +268,65 @@ def routed_node_accuracy(
     choose_local = router_logits.sigmoid().unsqueeze(-1) >= threshold
     routed_logits = torch.where(choose_local, local_logits, global_logits)
     return float((routed_logits[mask].argmax(dim=-1) == y[mask]).float().mean())
+
+
+def routing_switch_rate(
+    router_logits: torch.Tensor,
+    mask: torch.Tensor,
+    threshold: float,
+    default_choice: int,
+) -> float:
+    choose_local = router_logits[mask].sigmoid() >= threshold
+    return float((choose_local != bool(default_choice)).float().mean())
+
+
+def interpolated_node_accuracy(
+    alpha: float,
+    local_logits: torch.Tensor,
+    global_logits: torch.Tensor,
+    y: torch.Tensor,
+    mask: torch.Tensor,
+) -> float:
+    logits = alpha * local_logits + (1.0 - alpha) * global_logits
+    return float((logits[mask].argmax(dim=-1) == y[mask]).float().mean())
+
+
+def select_fixed_alpha(
+    alphas: list[float] | tuple[float, ...],
+    local_logits: torch.Tensor,
+    global_logits: torch.Tensor,
+    y: torch.Tensor,
+    mask: torch.Tensor,
+) -> dict[str, float]:
+    local_accuracy = constant_routed_node_accuracy(
+        1, local_logits, global_logits, y, mask
+    )
+    global_accuracy = constant_routed_node_accuracy(
+        0, local_logits, global_logits, y, mask
+    )
+    default_alpha = 1.0 if local_accuracy >= global_accuracy else 0.0
+    candidates = []
+    for alpha in alphas:
+        accuracy = interpolated_node_accuracy(
+            alpha, local_logits, global_logits, y, mask
+        )
+        candidates.append((accuracy, -abs(alpha - default_alpha), alpha))
+    validation_accuracy, _, selected_alpha = max(candidates)
+    return {
+        "alpha": float(selected_alpha),
+        "validation_accuracy": float(validation_accuracy),
+    }
+
+
+def oracle_union_accuracy(
+    local_logits: torch.Tensor,
+    global_logits: torch.Tensor,
+    y: torch.Tensor,
+    mask: torch.Tensor,
+) -> float:
+    local_correct = local_logits[mask].argmax(dim=-1) == y[mask]
+    global_correct = global_logits[mask].argmax(dim=-1) == y[mask]
+    return float((local_correct | global_correct).float().mean())
 
 
 def constant_routed_node_accuracy(
