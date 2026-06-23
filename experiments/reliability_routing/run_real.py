@@ -16,6 +16,7 @@ from src.real_data import (
     REAL_DATASETS,
     load_and_validate_dataset,
     prepare_graph_data,
+    primary_metric_for_dataset,
     select_mask,
     validation_fingerprint,
     write_validation_report,
@@ -115,6 +116,7 @@ def main() -> None:
         normalize_features=args.normalize_features,
         cache_path=cache_path,
         cache_key=cache_key,
+        primary_metric=primary_metric_for_dataset(args.dataset),
     )
     base_data = select_reliability_components(base_data, args.reliability_components)
     rows = []

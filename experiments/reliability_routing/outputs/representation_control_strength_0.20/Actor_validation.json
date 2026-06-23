@@ -1,0 +1,153 @@
+[
+  {
+    "dataset": "Actor",
+    "status": "valid",
+    "source": "PyG Actor/Geom-GCN",
+    "source_url": "https://github.com/graphdml-uiuc-jlu/geom-gcn",
+    "officially_undirected": false,
+    "expected": {
+      "num_nodes": 7600,
+      "num_edges": 30019,
+      "num_features": 932,
+      "num_classes": 5,
+      "num_splits": 10,
+      "source": "PyG Actor/Geom-GCN",
+      "source_url": "https://github.com/graphdml-uiuc-jlu/geom-gcn"
+    },
+    "actual": {
+      "num_nodes": 7600,
+      "num_edges": 30019,
+      "num_features": 932,
+      "num_classes": 5,
+      "num_splits": 10
+    },
+    "splits": {
+      "count": 10,
+      "sizes": [
+        {
+          "split": 0,
+          "train": 3648,
+          "val": 2432,
+          "test": 1520
+        },
+        {
+          "split": 1,
+          "train": 3648,
+          "val": 2432,
+          "test": 1520
+        },
+        {
+          "split": 2,
+          "train": 3648,
+          "val": 2432,
+          "test": 1520
+        },
+        {
+          "split": 3,
+          "train": 3648,
+          "val": 2432,
+          "test": 1520
+        },
+        {
+          "split": 4,
+          "train": 3648,
+          "val": 2432,
+          "test": 1520
+        },
+        {
+          "split": 5,
+          "train": 3648,
+          "val": 2432,
+          "test": 1520
+        },
+        {
+          "split": 6,
+          "train": 3648,
+          "val": 2432,
+          "test": 1520
+        },
+        {
+          "split": 7,
+          "train": 3648,
+          "val": 2432,
+          "test": 1520
+        },
+        {
+          "split": 8,
+          "train": 3648,
+          "val": 2432,
+          "test": 1520
+        },
+        {
+          "split": 9,
+          "train": 3648,
+          "val": 2432,
+          "test": 1520
+        }
+      ]
+    },
+    "raw_files": [
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/Actor/raw/out1_node_feature_label.txt",
+        "size_bytes": 207718,
+        "sha256": "1d5cdd094f8b91e770f6decfca85b35cf42f75d1efb51055fd6af16e11820ff8"
+      },
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/Actor/raw/out1_graph_edges.txt",
+        "size_bytes": 323820,
+        "sha256": "997cdce67ea9c29257d3ffe796328391931901cf823830affa453178b60e2c3e"
+      },
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/Actor/raw/film_split_0.6_0.2_0.npz",
+        "size_bytes": 4214,
+        "sha256": "4505a41d4e90abd94d1ec22571ce528b09ad7cf20d87f764aebd4177590767f5"
+      },
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/Actor/raw/film_split_0.6_0.2_1.npz",
+        "size_bytes": 4231,
+        "sha256": "1871b0d24e3977c41e378fd24acc8025b63f86b77739be77a5b558d1287f207d"
+      },
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/Actor/raw/film_split_0.6_0.2_2.npz",
+        "size_bytes": 4224,
+        "sha256": "d26680e911ef3ecc9fc2a26d90c9d35028c63aadd7a5aea774649d1496c282cb"
+      },
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/Actor/raw/film_split_0.6_0.2_3.npz",
+        "size_bytes": 4207,
+        "sha256": "6755ad5f6a0be8594b344af3d2261eed935b83b73c4d70136e1a7beea7f78cb0"
+      },
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/Actor/raw/film_split_0.6_0.2_4.npz",
+        "size_bytes": 4233,
+        "sha256": "328fdca62b25074f21f2922518e042f24b3b8a1fc378f9dfb2cae36439aed902"
+      },
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/Actor/raw/film_split_0.6_0.2_5.npz",
+        "size_bytes": 4224,
+        "sha256": "5b3161a8dc8de4b2e651ebd56d68e768d1377044895b325566117fe26ab81cb7"
+      },
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/Actor/raw/film_split_0.6_0.2_6.npz",
+        "size_bytes": 4221,
+        "sha256": "e251b38abd4d7931b5e9ae5aba99dcdf87f0be283bdf6e65421274a1c9ef1df6"
+      },
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/Actor/raw/film_split_0.6_0.2_7.npz",
+        "size_bytes": 4205,
+        "sha256": "12164ef9f5620a2f12a387f4f2b8636859d42201101d6d32829ade62d5a98326"
+      },
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/Actor/raw/film_split_0.6_0.2_8.npz",
+        "size_bytes": 4217,
+        "sha256": "405cd1f7f631f678119f8bf2405809e86614d532985beb59566fcf95abd35b3f"
+      },
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/Actor/raw/film_split_0.6_0.2_9.npz",
+        "size_bytes": 4208,
+        "sha256": "505691c5d41bb37b20d085415dcdde2e8e68b5bc4e1feb2c0e361308002012bb"
+      }
+    ],
+    "errors": []
+  }
+]

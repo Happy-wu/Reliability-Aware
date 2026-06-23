@@ -1,0 +1,99 @@
+[
+  {
+    "dataset": "Questions",
+    "status": "valid",
+    "source": "PyG HeterophilousGraphDataset",
+    "source_url": "https://github.com/yandex-research/heterophilous-graphs",
+    "officially_undirected": true,
+    "primary_metric": "roc_auc",
+    "expected": {
+      "num_nodes": 48921,
+      "num_edges": 307080,
+      "num_features": 301,
+      "num_classes": 2,
+      "num_splits": 10,
+      "source": "PyG HeterophilousGraphDataset",
+      "source_url": "https://github.com/yandex-research/heterophilous-graphs"
+    },
+    "actual": {
+      "num_nodes": 48921,
+      "num_edges": 307080,
+      "num_features": 301,
+      "num_classes": 2,
+      "num_splits": 10
+    },
+    "splits": {
+      "count": 10,
+      "sizes": [
+        {
+          "split": 0,
+          "train": 24460,
+          "val": 12230,
+          "test": 12231
+        },
+        {
+          "split": 1,
+          "train": 24460,
+          "val": 12230,
+          "test": 12231
+        },
+        {
+          "split": 2,
+          "train": 24460,
+          "val": 12230,
+          "test": 12231
+        },
+        {
+          "split": 3,
+          "train": 24460,
+          "val": 12230,
+          "test": 12231
+        },
+        {
+          "split": 4,
+          "train": 24460,
+          "val": 12230,
+          "test": 12231
+        },
+        {
+          "split": 5,
+          "train": 24460,
+          "val": 12230,
+          "test": 12231
+        },
+        {
+          "split": 6,
+          "train": 24460,
+          "val": 12230,
+          "test": 12231
+        },
+        {
+          "split": 7,
+          "train": 24460,
+          "val": 12230,
+          "test": 12231
+        },
+        {
+          "split": 8,
+          "train": 24460,
+          "val": 12230,
+          "test": 12231
+        },
+        {
+          "split": 9,
+          "train": 24460,
+          "val": 12230,
+          "test": 12231
+        }
+      ]
+    },
+    "raw_files": [
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/questions/raw/questions.npz",
+        "size_bytes": 47369919,
+        "sha256": "757ebd772bab1475c4dd951ca9e364400c6db161656cff9d21780ee874cf3074"
+      }
+    ],
+    "errors": []
+  }
+]

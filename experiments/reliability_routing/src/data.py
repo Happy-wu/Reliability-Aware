@@ -24,6 +24,7 @@ class GraphData:
     val_mask: torch.Tensor
     test_mask: torch.Tensor
     local_similarity: torch.Tensor
+    primary_metric: str = "accuracy"
 
 
 def set_seed(seed: int) -> None:

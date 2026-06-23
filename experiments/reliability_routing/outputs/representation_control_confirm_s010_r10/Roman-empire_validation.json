@@ -1,0 +1,98 @@
+[
+  {
+    "dataset": "Roman-empire",
+    "status": "valid",
+    "source": "PyG HeterophilousGraphDataset",
+    "source_url": "https://github.com/yandex-research/heterophilous-graphs",
+    "officially_undirected": true,
+    "expected": {
+      "num_nodes": 22662,
+      "num_edges": 65854,
+      "num_features": 300,
+      "num_classes": 18,
+      "num_splits": 10,
+      "source": "PyG HeterophilousGraphDataset",
+      "source_url": "https://github.com/yandex-research/heterophilous-graphs"
+    },
+    "actual": {
+      "num_nodes": 22662,
+      "num_edges": 65854,
+      "num_features": 300,
+      "num_classes": 18,
+      "num_splits": 10
+    },
+    "splits": {
+      "count": 10,
+      "sizes": [
+        {
+          "split": 0,
+          "train": 11331,
+          "val": 5665,
+          "test": 5666
+        },
+        {
+          "split": 1,
+          "train": 11331,
+          "val": 5665,
+          "test": 5666
+        },
+        {
+          "split": 2,
+          "train": 11331,
+          "val": 5665,
+          "test": 5666
+        },
+        {
+          "split": 3,
+          "train": 11331,
+          "val": 5665,
+          "test": 5666
+        },
+        {
+          "split": 4,
+          "train": 11331,
+          "val": 5665,
+          "test": 5666
+        },
+        {
+          "split": 5,
+          "train": 11331,
+          "val": 5665,
+          "test": 5666
+        },
+        {
+          "split": 6,
+          "train": 11331,
+          "val": 5665,
+          "test": 5666
+        },
+        {
+          "split": 7,
+          "train": 11331,
+          "val": 5665,
+          "test": 5666
+        },
+        {
+          "split": 8,
+          "train": 11331,
+          "val": 5665,
+          "test": 5666
+        },
+        {
+          "split": 9,
+          "train": 11331,
+          "val": 5665,
+          "test": 5666
+        }
+      ]
+    },
+    "raw_files": [
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/roman_empire/raw/roman_empire.npz",
+        "size_bytes": 20401489,
+        "sha256": "a58ba741d123bf892fe5c872138d07463d75a2e9012360b8dd78ac2d4766d428"
+      }
+    ],
+    "errors": []
+  }
+]

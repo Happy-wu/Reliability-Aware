@@ -13,6 +13,9 @@ data/
 outputs/**/_expert_cache/
 outputs/**/_shared_expert_cache/
 outputs/**/_preference_cache/
+outputs/**/_node_diagnostics/
+outputs/**/_backbone_cache/
+outputs/**/*.pt
 
 # Local dataset bundles are distribution artifacts, not source or results.
 *.zip

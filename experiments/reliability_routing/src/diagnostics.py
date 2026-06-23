@@ -78,9 +78,22 @@ def collect_diagnostics(model: torch.nn.Module, data) -> dict[str, float]:
 
 
 def safe_corr(a: np.ndarray, b: np.ndarray) -> float:
-    if np.std(a) < 1e-8 or np.std(b) < 1e-8:
+    a = np.asarray(a, dtype=np.float64).reshape(-1)
+    b = np.asarray(b, dtype=np.float64).reshape(-1)
+    if a.size != b.size:
+        raise ValueError("Correlation inputs must have the same number of values")
+    finite = np.isfinite(a) & np.isfinite(b)
+    if finite.sum() < 2:
         return math.nan
-    return float(np.corrcoef(a, b)[0, 1])
+    a = a[finite]
+    b = b[finite]
+    a = a - a.mean()
+    b = b - b.mean()
+    denominator = float(np.linalg.norm(a) * np.linalg.norm(b))
+    if not math.isfinite(denominator) or denominator == 0.0:
+        return math.nan
+    correlation = float(np.dot(a, b) / denominator)
+    return float(np.clip(correlation, -1.0, 1.0))
 
 
 def move_data(data, device: torch.device):

@@ -20,6 +20,7 @@ from src.real_data import (
     REAL_DATASETS,
     load_and_validate_dataset,
     prepare_graph_data,
+    primary_metric_for_dataset,
     select_mask,
     validation_fingerprint,
     write_validation_report,
@@ -123,6 +124,7 @@ def main() -> None:
         edge_protocol=args.edge_protocol,
         cache_path=cache_path,
         cache_key=cache_key,
+        primary_metric=primary_metric_for_dataset(args.dataset),
     )
     data = select_reliability_components(data, args.reliability_components)
     num_splits = int(validation["actual"]["num_splits"])
@@ -143,9 +145,14 @@ def main() -> None:
     path = out_dir / f"{args.dataset}_{result_name}.csv"
     write_csv(path, rows)
     values = np.array([float(row["test_acc_at_best_val"]) for row in rows])
+    primary_values = np.array(
+        [float(row["test_primary_at_best_val"]) for row in rows]
+    )
     macro_f1 = np.array([float(row["test_macro_f1_at_best_val"]) for row in rows])
     print(
-        f"test_acc mean={values.mean():.4f} std={values.std():.4f}; "
+        f"{rows[0]['primary_metric']} mean={primary_values.mean():.4f} "
+        f"std={primary_values.std():.4f}; "
+        f"test_acc mean={values.mean():.4f}; "
         f"macro_f1 mean={macro_f1.mean():.4f}"
     )
     print(f"saved: {path}")
@@ -269,8 +276,13 @@ def train_one(args, base_data, device, split: int, seed: int) -> dict[str, objec
         "split": split,
         "seed": seed,
         "best_epoch": final_result["epoch"],
+        "primary_metric": final_result["primary_metric"],
+        "best_val_primary": final_result["val_score"],
+        "test_primary_at_best_val": final_result["test_score"],
         "best_val_acc": final_result["val_acc"],
         "test_acc_at_best_val": final_result["test_acc"],
+        "best_val_roc_auc": final_result["val_roc_auc"],
+        "test_roc_auc_at_best_val": final_result["test_roc_auc"],
         "test_macro_f1_at_best_val": final_result["test_macro_f1"],
         "local_expert_val_acc": value_or_nan(local_result, "val_acc"),
         "global_expert_val_acc": value_or_nan(global_result, "val_acc"),
@@ -419,7 +431,7 @@ def train_module(
         module.eval()
         with torch.no_grad():
             result = evaluate_result(forward(), data, epoch)
-        if result["val_acc"] > best["val_acc"]:
+        if result["val_score"] > best["val_score"]:
             best = result
             best_state = copy.deepcopy(module.state_dict())
             stale = 0
@@ -432,10 +444,28 @@ def train_module(
 
 
 def evaluate_result(logits, data, epoch: int) -> dict[str, float | int]:
+    val_acc = accuracy(logits, data.y, data.val_mask)
+    test_acc = accuracy(logits, data.y, data.test_mask)
+    val_roc_auc = binary_roc_auc(logits, data.y, data.val_mask)
+    test_roc_auc = binary_roc_auc(logits, data.y, data.test_mask)
+    primary_metric = getattr(data, "primary_metric", "accuracy")
+    if primary_metric == "roc_auc":
+        val_score = val_roc_auc
+        test_score = test_roc_auc
+    elif primary_metric == "accuracy":
+        val_score = val_acc
+        test_score = test_acc
+    else:
+        raise ValueError(f"Unknown primary metric: {primary_metric}")
     return {
         "epoch": epoch,
-        "val_acc": accuracy(logits, data.y, data.val_mask),
-        "test_acc": accuracy(logits, data.y, data.test_mask),
+        "primary_metric": primary_metric,
+        "val_score": val_score,
+        "test_score": test_score,
+        "val_acc": val_acc,
+        "test_acc": test_acc,
+        "val_roc_auc": val_roc_auc,
+        "test_roc_auc": test_roc_auc,
         "test_macro_f1": macro_f1(logits, data.y, data.test_mask),
     }
 
@@ -580,10 +610,35 @@ def macro_f1(logits, y, mask) -> float:
     return float(f1_score(target, prediction, average="macro", zero_division=0))
 
 
-def safe_corr(a: np.ndarray, b: np.ndarray) -> float:
-    if np.std(a) < 1e-8 or np.std(b) < 1e-8:
+def binary_roc_auc(logits, y, mask) -> float:
+    target = y[mask].detach().cpu().numpy()
+    if np.unique(target).size != 2:
         return math.nan
-    return float(np.corrcoef(a, b)[0, 1])
+    score = torch.softmax(logits[mask], dim=-1)[:, 1].detach().cpu().numpy()
+    try:
+        from sklearn.metrics import roc_auc_score
+    except ImportError as exc:
+        raise RuntimeError("ROC-AUC requires scikit-learn") from exc
+    return float(roc_auc_score(target, score))
+
+
+def safe_corr(a: np.ndarray, b: np.ndarray) -> float:
+    a = np.asarray(a, dtype=np.float64).reshape(-1)
+    b = np.asarray(b, dtype=np.float64).reshape(-1)
+    if a.size != b.size:
+        raise ValueError("Correlation inputs must have the same number of values")
+    finite = np.isfinite(a) & np.isfinite(b)
+    if finite.sum() < 2:
+        return math.nan
+    a = a[finite]
+    b = b[finite]
+    a = a - a.mean()
+    b = b - b.mean()
+    denominator = float(np.linalg.norm(a) * np.linalg.norm(b))
+    if not math.isfinite(denominator) or denominator == 0.0:
+        return math.nan
+    correlation = float(np.dot(a, b) / denominator)
+    return float(np.clip(correlation, -1.0, 1.0))
 
 
 def value_or_nan(result, key: str) -> float:

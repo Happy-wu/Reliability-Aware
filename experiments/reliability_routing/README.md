@@ -397,3 +397,163 @@ CUDA_VISIBLE_DEVICES=0 python run_preference_routing_suite.py \
   --no-download \
   --device cuda
 ```
+
+# Representation-control screening
+
+`run_representation_control_suite.py` evaluates three isolated protocols:
+
+- `residual_alpha`: frozen local/global experts with a conservative node-wise
+  adjustment around the validation-selected fixed logit alpha.
+- `hidden_mixing_frozen`: hidden-state mixing initialized from a
+  validation-selected fixed hidden alpha; the backbone stays in evaluation
+  mode and only the controller is trained.
+- `hidden_mixing_finetune`: the same initialization followed by end-to-end
+  fine-tuning, measuring performance potential rather than controller-only
+  attribution.
+
+Both families use the same parameterization for true, shuffled, constant, and
+zero reliability controls. The initial interpolation weight is small, so every
+dynamic model starts close to its fixed baseline even when the selected alpha
+is exactly zero or one.
+
+`zero_reliability` is a learnable zero-input reliability controller, not the
+absence of a controller. The `fixed` control is the true no-controller
+baseline.
+
+For `hidden_mixing_frozen`, `fixed` is the untouched selected baseline. For
+`hidden_mixing_finetune`, `fixed` is the same-architecture fixed-mixing
+fine-tuning control.
+
+Recommended three-run screening:
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python run_representation_control_suite.py \
+  --datasets Chameleon Squirrel Roman-empire Cora Citeseer \
+  --families residual_alpha hidden_mixing_frozen hidden_mixing_finetune \
+  --controls fixed feature_only reliability_only combined \
+             shuffled_reliability constant_reliability zero_reliability \
+             combined_shuffled combined_constant \
+  --runs 3 \
+  --fixed-alphas 0.0 0.25 0.5 0.75 1.0 \
+  --max-adjustment 0.1 \
+  --lambda-init 0.001 \
+  --expert-epochs 300 \
+  --control-epochs 200 \
+  --patience 60 \
+  --data-root data \
+  --out-dir outputs/representation_control_screen_v1 \
+  --no-download \
+  --device cuda
+```
+
+The suite writes per-run CSV files, `summary.csv`,
+`paired_comparisons.csv`, and `analysis.md`. The shared expert and hidden
+backbone caches prevent each control variant from retraining the same baseline.
+
+The coarse alpha grid above is intended for screening. Formal confirmation
+should use a 0.05-step grid:
+
+```text
+0.00 0.05 0.10 0.15 0.20 0.25 0.30 0.35 0.40 0.45 0.50
+0.55 0.60 0.65 0.70 0.75 0.80 0.85 0.90 0.95 1.00
+```
+
+## Iterative local-global relation control
+
+The iterative relation families keep each layer's local and global
+representations fixed inside an inner refinement loop. Shared controller
+parameters update only a relation state and a channel-wise mixing correction:
+
+```text
+base = alpha0 * local + (1 - alpha0) * global
+relation = (channel_alpha - alpha0) * (local - global)
+output = base + relation
+```
+
+The correction head is zero-initialized, so every iterative model starts
+exactly at the validation-selected fixed hidden-mixing baseline. The total
+channel adjustment is bounded by `--max-adjustment`.
+
+Available families:
+
+- `iterative_relation_frozen`: freeze the selected hidden backbone and train
+  only the shared iterative relation controller.
+- `iterative_relation_finetune`: initialize from the same backbone and
+  fine-tune the complete model.
+
+The suite defaults now target the iterative-relation question:
+
+```text
+datasets = Roman-empire, Amazon-ratings, Cora, Pubmed
+families = iterative_relation_frozen, iterative_relation_finetune
+```
+
+It prints the complete number of requested training runs before launching.
+Other representation-control families remain available through explicit
+`--families`.
+
+`Minesweeper`, `Tolokers`, and `Questions` are imbalanced binary benchmarks.
+For these datasets, checkpoint selection, fixed-alpha selection, summary
+tables, and paired comparisons use ROC-AUC. Accuracy and macro-F1 remain in the
+CSV as secondary diagnostics. Other datasets continue to use accuracy as the
+primary metric.
+
+Recommended `K=1,2,3` screening with one shared fixed-backbone cache:
+
+```bash
+for K in 1 2 3; do
+  CUDA_VISIBLE_DEVICES=0 python run_representation_control_suite.py \
+    --datasets Roman-empire Amazon-ratings Cora Pubmed \
+    --families iterative_relation_frozen iterative_relation_finetune \
+    --controls fixed feature_only reliability_only combined \
+               shuffled_reliability constant_reliability \
+               combined_shuffled combined_constant \
+    --relation-steps "${K}" \
+    --runs 3 \
+    --fixed-alphas 0.0 0.25 0.5 0.75 1.0 \
+    --max-adjustment 0.1 \
+    --expert-epochs 300 \
+    --control-epochs 200 \
+    --patience 60 \
+    --data-root data \
+    --backbone-cache-dir outputs/iterative_relation_shared_backbone_cache \
+    --out-dir "outputs/iterative_relation_k${K}_screen" \
+    --no-download \
+    --device cuda
+done
+```
+
+`K=0` is represented by the `fixed` control. The 0.25 alpha grid above is for
+screening. Formal confirmation should pass the 0.05-step grid listed in the
+previous section. Result CSV files include relation-state update-gate,
+relation-norm, and channel-wise alpha diagnostics.
+
+### Additional undirected heterophily screening
+
+After selecting `K=1`, screen the three remaining native-undirected binary
+benchmarks with the smaller reliability-focused control set:
+
+```bash
+CUDA_VISIBLE_DEVICES=1 python run_representation_control_suite.py \
+  --datasets Minesweeper Tolokers Questions \
+  --families iterative_relation_frozen iterative_relation_finetune \
+  --controls fixed feature_only reliability_only \
+             shuffled_reliability constant_reliability \
+  --edge-protocol undirected \
+  --runs 3 \
+  --relation-steps 1 \
+  --fixed-alphas 0.0 0.25 0.5 0.75 1.0 \
+  --max-adjustment 0.1 \
+  --expert-epochs 300 \
+  --control-epochs 200 \
+  --patience 60 \
+  --data-root data \
+  --backbone-cache-dir outputs/iterative_relation_binary_shared_backbone \
+  --out-dir outputs/iterative_relation_binary_k1_screen \
+  --no-download \
+  --device cuda
+```
+
+This is `3 datasets x 2 families x 5 controls x 3 runs = 90` requested run
+records. The suite uses ROC-AUC for checkpoint selection and comparisons on
+all three datasets.

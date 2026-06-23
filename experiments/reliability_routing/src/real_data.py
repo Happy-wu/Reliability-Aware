@@ -18,6 +18,11 @@ HETERO_UNDIRECTED_DATASETS = (
     "Tolokers",
     "Questions",
 )
+ROC_AUC_DATASETS = (
+    "Minesweeper",
+    "Tolokers",
+    "Questions",
+)
 REAL_DATASETS = (
     "Cora",
     "Citeseer",
@@ -28,6 +33,12 @@ REAL_DATASETS = (
     *HETERO_UNDIRECTED_DATASETS,
 )
 EDGE_PROTOCOLS = ("undirected", "source_to_target", "target_to_source")
+
+
+def primary_metric_for_dataset(name: str) -> str:
+    if name not in REAL_DATASETS:
+        raise ValueError(f"Unknown real dataset: {name}")
+    return "roc_auc" if name in ROC_AUC_DATASETS else "accuracy"
 
 
 @dataclass(frozen=True)
@@ -136,7 +147,20 @@ def dataset_has_local_files(name: str, root: Path) -> bool:
         "Tolokers": ("tolokers", "Tolokers"),
         "Questions": ("questions", "Questions"),
     }
-    return any((root / candidate).exists() for candidate in aliases[name])
+    for candidate in aliases[name]:
+        dataset_root = root / candidate
+        if not dataset_root.is_dir():
+            continue
+        for subdir_name in ("raw", "processed"):
+            subdir = dataset_root / subdir_name
+            if not subdir.is_dir():
+                continue
+            if any(
+                path.is_file() and path.stat().st_size > 0
+                for path in subdir.rglob("*")
+            ):
+                return True
+    return False
 
 
 def validate_pyg_data(name: str, dataset: object, data: object) -> dict[str, object]:
@@ -190,6 +214,7 @@ def validate_pyg_data(name: str, dataset: object, data: object) -> dict[str, obj
         "source": expected.source,
         "source_url": expected.source_url,
         "officially_undirected": name in HETERO_UNDIRECTED_DATASETS,
+        "primary_metric": primary_metric_for_dataset(name),
         "expected": asdict(expected),
         "actual": actual,
         "splits": split_report,
@@ -271,7 +296,10 @@ def prepare_graph_data(
     edge_protocol: str = "source_to_target",
     cache_path: Path | None = None,
     cache_key: str | None = None,
+    primary_metric: str = "accuracy",
 ) -> GraphData:
+    if primary_metric not in {"accuracy", "roc_auc"}:
+        raise ValueError(f"Unknown primary metric: {primary_metric}")
     x = pyg_data.x.float()
     if normalize_features:
         x = row_normalize_features(x)
@@ -315,6 +343,7 @@ def prepare_graph_data(
         val_mask=select_mask(pyg_data.val_mask, split).clone(),
         test_mask=select_mask(pyg_data.test_mask, split).clone(),
         local_similarity=local_similarity,
+        primary_metric=primary_metric,
     )
 
 

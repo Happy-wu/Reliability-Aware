@@ -1,0 +1,99 @@
+[
+  {
+    "dataset": "Minesweeper",
+    "status": "valid",
+    "source": "PyG HeterophilousGraphDataset",
+    "source_url": "https://github.com/yandex-research/heterophilous-graphs",
+    "officially_undirected": true,
+    "primary_metric": "roc_auc",
+    "expected": {
+      "num_nodes": 10000,
+      "num_edges": 78804,
+      "num_features": 7,
+      "num_classes": 2,
+      "num_splits": 10,
+      "source": "PyG HeterophilousGraphDataset",
+      "source_url": "https://github.com/yandex-research/heterophilous-graphs"
+    },
+    "actual": {
+      "num_nodes": 10000,
+      "num_edges": 78804,
+      "num_features": 7,
+      "num_classes": 2,
+      "num_splits": 10
+    },
+    "splits": {
+      "count": 10,
+      "sizes": [
+        {
+          "split": 0,
+          "train": 5000,
+          "val": 2500,
+          "test": 2500
+        },
+        {
+          "split": 1,
+          "train": 5000,
+          "val": 2500,
+          "test": 2500
+        },
+        {
+          "split": 2,
+          "train": 5000,
+          "val": 2500,
+          "test": 2500
+        },
+        {
+          "split": 3,
+          "train": 5000,
+          "val": 2500,
+          "test": 2500
+        },
+        {
+          "split": 4,
+          "train": 5000,
+          "val": 2500,
+          "test": 2500
+        },
+        {
+          "split": 5,
+          "train": 5000,
+          "val": 2500,
+          "test": 2500
+        },
+        {
+          "split": 6,
+          "train": 5000,
+          "val": 2500,
+          "test": 2500
+        },
+        {
+          "split": 7,
+          "train": 5000,
+          "val": 2500,
+          "test": 2500
+        },
+        {
+          "split": 8,
+          "train": 5000,
+          "val": 2500,
+          "test": 2500
+        },
+        {
+          "split": 9,
+          "train": 5000,
+          "val": 2500,
+          "test": 2500
+        }
+      ]
+    },
+    "raw_files": [
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/minesweeper/raw/minesweeper.npz",
+        "size_bytes": 135045,
+        "sha256": "e664c8dacf1e8ac466c2c09ed4b237bd2c5541f47a6eae9c6092cb87f16412b3"
+      }
+    ],
+    "errors": []
+  }
+]

@@ -48,6 +48,7 @@ from src.real_data import (
     REAL_DATASETS,
     load_and_validate_dataset,
     prepare_graph_data,
+    primary_metric_for_dataset,
     select_mask,
     validation_fingerprint,
     write_validation_report,
@@ -162,6 +163,7 @@ def main() -> None:
         edge_protocol=args.edge_protocol,
         cache_path=reliability_cache,
         cache_key=cache_key,
+        primary_metric=primary_metric_for_dataset(args.dataset),
     )
     data = select_reliability_components(data, args.reliability_components)
 
