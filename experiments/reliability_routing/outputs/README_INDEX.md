@@ -46,6 +46,20 @@ This directory stores experiment outputs for `experiments/reliability_routing`.
 - `iterative_relation_k3_screen`
 - `iterative_relation_binary_k1_screen`
 - `iterative_relation_binary_shared_backbone`
+- `phaseA_raw_concat_screen`
+  - Phase A input-side screening baseline with `reliability_encoder_mode=raw_concat`.
+- `phaseA_component_aligned_screen`
+  - Historical component mean/aligned encoder screening; not selected as the main baseline.
+- `phaseA2_raw_concat_screen`
+  - Phase A2 baseline rerun for direct comparison with component concat.
+- `phaseA2_component_concat_screen`
+  - Current recommended reliability encoder baseline.
+  - Uses component-wise encoders followed by direct concat:
+    `reliability_encoder_mode=component_concat`,
+    `reliability_component_dim=16`,
+    `component_missing_mode=zero_slot`.
+- `phaseA2_shared_cache`
+  - Shared expert/backbone cache used by Phase A2 raw concat and component concat runs.
 
 ### Historical Archive
 
@@ -60,6 +74,7 @@ This directory stores experiment outputs for `experiments/reliability_routing`.
 4. `preference_routing_full_v3`
 5. `utility_routing_full_v3`
 6. `expert_validation_full`
+7. `phaseA2_component_concat_screen`
 
 ## Notes
 

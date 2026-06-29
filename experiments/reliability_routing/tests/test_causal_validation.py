@@ -26,6 +26,8 @@ def base_args(**updates):
         "family": "iterative_relation_frozen",
         "control_mode": "reliability_only",
         "causal_interventions": True,
+        "reliability_component_dim": 16,
+        "component_missing_mode": "zero_slot",
         "reuse_compatible_backbone_cache": False,
         "compatible_backbone_cache_config": None,
         "save_external_expert_logits": False,
@@ -54,6 +56,8 @@ def cache_args(tmp_path: Path, **updates):
         "weight_decay": 0.0001,
         "expert_epochs": 300,
         "patience": 60,
+        "reliability_component_dim": 16,
+        "component_missing_mode": "zero_slot",
     }
     values.update(updates)
     return SimpleNamespace(**values)

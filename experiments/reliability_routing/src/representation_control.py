@@ -20,6 +20,260 @@ CONTROL_MODES = (
     "combined_shuffled",
     "combined_constant",
 )
+ALPHA_TYPES = ("node", "group", "channel")
+RELIABILITY_ENCODER_MODES = (
+    "raw_concat",
+    "component_mean",
+    "component_aligned",
+    "component_concat",
+)
+COMPONENT_MISSING_MODES = ("zero_slot", "omit")
+RELIABILITY_COMPONENTS = (
+    "degree",
+    "local_similarity",
+    "neighbor_variance",
+    "rwse",
+)
+
+
+class ComponentAlignedReliabilityEncoder(nn.Module):
+    """Encode each reliability component block before fusing them.
+
+    The reliability layout is fixed by src.data:
+    [degree, local_similarity, neighbor_variance, rwse_1, ...].
+    Selected-out components are omitted instead of feeding zero values through a
+    biased encoder, so component ablations remain clean.
+    """
+
+    def __init__(
+        self,
+        reliability_dim: int,
+        hidden_dim: int,
+        dropout: float = 0.3,
+        components: list[str] | tuple[str, ...] | None = None,
+    ):
+        super().__init__()
+        if reliability_dim < 3:
+            raise ValueError("component_aligned reliability requires at least 3 dims")
+        selected = tuple(
+            RELIABILITY_COMPONENTS if components is None else components
+        )
+        unknown = set(selected).difference(RELIABILITY_COMPONENTS)
+        if unknown:
+            raise ValueError(f"Unknown reliability components: {sorted(unknown)}")
+        if not selected:
+            raise ValueError("At least one reliability component must be selected")
+
+        rwse_dim = reliability_dim - 3
+        dims = {
+            "degree": 1,
+            "local_similarity": 1,
+            "neighbor_variance": 1,
+            "rwse": rwse_dim,
+        }
+        if "rwse" in selected and rwse_dim <= 0:
+            raise ValueError("rwse component was selected but no RWSE dims exist")
+
+        self.reliability_dim = int(reliability_dim)
+        self.output_dim = int(hidden_dim)
+        self.components = tuple(
+            component for component in RELIABILITY_COMPONENTS if component in selected
+        )
+        self.rwse_dim = rwse_dim
+        self.encoders = nn.ModuleDict(
+            {
+                component: self._make_encoder(dims[component], hidden_dim, dropout)
+                for component in self.components
+            }
+        )
+        self.fusion = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+        )
+
+    @staticmethod
+    def _make_encoder(
+        in_dim: int,
+        hidden_dim: int,
+        dropout: float,
+    ) -> nn.Sequential:
+        return nn.Sequential(
+            nn.Linear(in_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.LayerNorm(hidden_dim),
+        )
+
+    def _component_input(
+        self,
+        reliability: torch.Tensor,
+        component: str,
+    ) -> torch.Tensor:
+        if component == "degree":
+            return reliability[:, 0:1]
+        if component == "local_similarity":
+            return reliability[:, 1:2]
+        if component == "neighbor_variance":
+            return reliability[:, 2:3]
+        if component == "rwse":
+            return reliability[:, 3:]
+        raise ValueError(f"Unknown reliability component: {component}")
+
+    def forward(self, reliability: torch.Tensor) -> torch.Tensor:
+        if reliability.size(1) != self.reliability_dim:
+            raise ValueError(
+                f"Expected reliability dim {self.reliability_dim}, "
+                f"got {reliability.size(1)}"
+            )
+        pieces = [
+            self.encoders[component](self._component_input(reliability, component))
+            for component in self.components
+        ]
+        return self.fusion(torch.stack(pieces, dim=0).mean(dim=0))
+
+
+class ComponentConcatReliabilityEncoder(nn.Module):
+    """Encode component slots separately and concatenate them.
+
+    With zero_slot mode every canonical component keeps a fixed slot; unselected
+    components become exact zeros without passing through biased encoders. This
+    keeps controller context width stable across component ablations.
+    """
+
+    def __init__(
+        self,
+        reliability_dim: int,
+        component_dim: int,
+        dropout: float = 0.3,
+        components: list[str] | tuple[str, ...] | None = None,
+        missing_mode: str = "zero_slot",
+    ):
+        super().__init__()
+        if reliability_dim < 3:
+            raise ValueError("component_concat reliability requires at least 3 dims")
+        if component_dim < 1:
+            raise ValueError("reliability component dim must be positive")
+        if missing_mode not in COMPONENT_MISSING_MODES:
+            raise ValueError(f"Unknown component missing mode: {missing_mode}")
+        selected = tuple(
+            RELIABILITY_COMPONENTS if components is None else components
+        )
+        unknown = set(selected).difference(RELIABILITY_COMPONENTS)
+        if unknown:
+            raise ValueError(f"Unknown reliability components: {sorted(unknown)}")
+        if not selected:
+            raise ValueError("At least one reliability component must be selected")
+
+        rwse_dim = reliability_dim - 3
+        dims = {
+            "degree": 1,
+            "local_similarity": 1,
+            "neighbor_variance": 1,
+            "rwse": rwse_dim,
+        }
+        if "rwse" in selected and rwse_dim <= 0:
+            raise ValueError("rwse component was selected but no RWSE dims exist")
+
+        self.reliability_dim = int(reliability_dim)
+        self.component_dim = int(component_dim)
+        self.missing_mode = missing_mode
+        self.selected_components = tuple(
+            component for component in RELIABILITY_COMPONENTS if component in selected
+        )
+        self.slot_components = (
+            RELIABILITY_COMPONENTS
+            if missing_mode == "zero_slot"
+            else self.selected_components
+        )
+        self.output_dim = len(self.slot_components) * self.component_dim
+        encoder_components = (
+            RELIABILITY_COMPONENTS
+            if missing_mode == "zero_slot"
+            else self.selected_components
+        )
+        self.encoders = nn.ModuleDict(
+            {
+                component: ComponentAlignedReliabilityEncoder._make_encoder(
+                    dims[component],
+                    self.component_dim,
+                    dropout,
+                )
+                for component in encoder_components
+            }
+        )
+
+    def _component_input(
+        self,
+        reliability: torch.Tensor,
+        component: str,
+    ) -> torch.Tensor:
+        if component == "degree":
+            return reliability[:, 0:1]
+        if component == "local_similarity":
+            return reliability[:, 1:2]
+        if component == "neighbor_variance":
+            return reliability[:, 2:3]
+        if component == "rwse":
+            return reliability[:, 3:]
+        raise ValueError(f"Unknown reliability component: {component}")
+
+    def forward(self, reliability: torch.Tensor) -> torch.Tensor:
+        if reliability.size(1) != self.reliability_dim:
+            raise ValueError(
+                f"Expected reliability dim {self.reliability_dim}, "
+                f"got {reliability.size(1)}"
+            )
+        pieces = []
+        for component in self.slot_components:
+            if component in self.selected_components:
+                pieces.append(
+                    self.encoders[component](
+                        self._component_input(reliability, component)
+                    )
+                )
+            else:
+                pieces.append(
+                    reliability.new_zeros(
+                        reliability.size(0),
+                        self.component_dim,
+                    )
+                )
+        return torch.cat(pieces, dim=-1)
+
+
+def build_reliability_encoder(
+    reliability_dim: int,
+    hidden_dim: int,
+    dropout: float,
+    mode: str,
+    components: list[str] | tuple[str, ...] | None,
+    component_dim: int,
+    component_missing_mode: str,
+) -> nn.Module:
+    if mode == "raw_concat":
+        encoder = ReliabilityEncoder(reliability_dim, hidden_dim, dropout=dropout)
+        encoder.output_dim = hidden_dim
+        return encoder
+    if mode in {"component_mean", "component_aligned"}:
+        return ComponentAlignedReliabilityEncoder(
+            reliability_dim,
+            hidden_dim,
+            dropout=dropout,
+            components=components,
+        )
+    if mode == "component_concat":
+        return ComponentConcatReliabilityEncoder(
+            reliability_dim,
+            component_dim=component_dim,
+            dropout=dropout,
+            components=components,
+            missing_mode=component_missing_mode,
+        )
+    raise ValueError(f"Unknown reliability encoder mode: {mode}")
 
 
 class ConservativeAlphaController(nn.Module):
@@ -35,6 +289,10 @@ class ConservativeAlphaController(nn.Module):
         base_alpha: float,
         max_adjustment: float,
         lambda_init: float,
+        reliability_encoder_mode: str = "raw_concat",
+        reliability_components: list[str] | tuple[str, ...] | None = None,
+        reliability_component_dim: int = 16,
+        component_missing_mode: str = "zero_slot",
     ):
         super().__init__()
         if mode not in CONTROL_MODES or mode == "fixed":
@@ -55,13 +313,17 @@ class ConservativeAlphaController(nn.Module):
             nn.Dropout(dropout),
             nn.LayerNorm(hidden_dim),
         )
-        self.reliability_encoder = ReliabilityEncoder(
+        self.reliability_encoder = build_reliability_encoder(
             reliability_dim,
             hidden_dim,
-            dropout=dropout,
+            dropout,
+            reliability_encoder_mode,
+            reliability_components,
+            reliability_component_dim,
+            component_missing_mode,
         )
         self.trunk = nn.Sequential(
-            nn.Linear(hidden_dim * 2, hidden_dim),
+            nn.Linear(hidden_dim + self.reliability_encoder.output_dim, hidden_dim),
             nn.ReLU(),
             nn.Dropout(dropout),
         )
@@ -103,7 +365,7 @@ class ConservativeAlphaController(nn.Module):
 
 
 class IterativeRelationController(nn.Module):
-    """Refine channel-wise local/global mixing with shared recurrent weights."""
+    """Refine local/global mixing with shared recurrent weights."""
 
     def __init__(
         self,
@@ -115,6 +377,12 @@ class IterativeRelationController(nn.Module):
         base_alpha: float,
         max_adjustment: float,
         num_steps: int,
+        reliability_encoder_mode: str = "raw_concat",
+        reliability_components: list[str] | tuple[str, ...] | None = None,
+        reliability_component_dim: int = 16,
+        component_missing_mode: str = "zero_slot",
+        alpha_type: str = "channel",
+        alpha_groups: int = 4,
     ):
         super().__init__()
         if mode not in CONTROL_MODES or mode == "fixed":
@@ -125,23 +393,36 @@ class IterativeRelationController(nn.Module):
             raise ValueError("max_adjustment must be in (0, 1]")
         if num_steps < 1:
             raise ValueError("num_steps must be positive")
+        if alpha_type not in ALPHA_TYPES:
+            raise ValueError(f"Unknown alpha_type: {alpha_type}")
+        if alpha_groups < 1:
+            raise ValueError("alpha_groups must be positive")
+        if alpha_type == "group" and hidden_dim % alpha_groups != 0:
+            raise ValueError("hidden_dim must be divisible by alpha_groups")
 
         self.mode = mode
         self.base_alpha = float(base_alpha)
         self.max_adjustment = float(max_adjustment)
         self.num_steps = int(num_steps)
+        self.alpha_type = alpha_type
+        self.alpha_groups = int(alpha_groups)
+        self.alpha_dim = self._alpha_dim(hidden_dim)
         self.feature_encoder = nn.Sequential(
             nn.Linear(feature_dim, hidden_dim),
             nn.ReLU(),
             nn.Dropout(dropout),
             nn.LayerNorm(hidden_dim),
         )
-        self.reliability_encoder = ReliabilityEncoder(
+        self.reliability_encoder = build_reliability_encoder(
             reliability_dim,
             hidden_dim,
-            dropout=dropout,
+            dropout,
+            reliability_encoder_mode,
+            reliability_components,
+            reliability_component_dim,
+            component_missing_mode,
         )
-        context_dim = hidden_dim * 5
+        context_dim = hidden_dim * 4 + self.reliability_encoder.output_dim
         self.state_init = nn.Sequential(
             nn.Linear(context_dim, hidden_dim),
             nn.Tanh(),
@@ -154,9 +435,24 @@ class IterativeRelationController(nn.Module):
             nn.Linear(hidden_dim + context_dim, hidden_dim),
             nn.Tanh(),
         )
-        self.alpha_update = nn.Linear(hidden_dim, hidden_dim)
+        self.alpha_update = nn.Linear(hidden_dim, self.alpha_dim)
         nn.init.zeros_(self.alpha_update.weight)
         nn.init.zeros_(self.alpha_update.bias)
+        self.latest_alpha_raw: torch.Tensor | None = None
+
+    def _alpha_dim(self, hidden_dim: int) -> int:
+        if self.alpha_type == "node":
+            return 1
+        if self.alpha_type == "group":
+            return self.alpha_groups
+        return hidden_dim
+
+    def expand_alpha(self, alpha: torch.Tensor, hidden_dim: int) -> torch.Tensor:
+        if self.alpha_type == "node":
+            return alpha.expand(-1, hidden_dim)
+        if self.alpha_type == "group":
+            return alpha.repeat_interleave(hidden_dim // self.alpha_groups, dim=-1)
+        return alpha
 
     def forward(
         self,
@@ -196,7 +492,7 @@ class IterativeRelationController(nn.Module):
             dim=-1,
         )
         state = self.state_init(context)
-        raw_adjustment = torch.zeros_like(local_h)
+        raw_adjustment = local_h.new_zeros(local_h.size(0), self.alpha_dim)
         gates = []
         for _ in range(self.num_steps):
             update_input = torch.cat([state, context], dim=-1)
@@ -209,14 +505,17 @@ class IterativeRelationController(nn.Module):
         signed_adjustment = self.max_adjustment * torch.tanh(
             raw_adjustment / self.num_steps
         )
+
         alpha = torch.clamp(
             self.base_alpha + signed_adjustment,
             min=0.0,
             max=1.0,
         )
-        relation_h = (alpha - self.base_alpha) * difference
+        expanded_alpha = self.expand_alpha(alpha, difference.size(-1))
+        self.latest_alpha_raw = alpha.detach()
+        relation_h = (expanded_alpha - self.base_alpha) * difference
         mean_gate = torch.stack(gates, dim=0).mean(dim=0)
-        return alpha, relation_h, state, mean_gate
+        return expanded_alpha, relation_h, state, mean_gate
 
 
 class ResidualAlphaFusion(nn.Module):
@@ -230,6 +529,10 @@ class ResidualAlphaFusion(nn.Module):
         base_alpha: float,
         max_adjustment: float,
         lambda_init: float,
+        reliability_encoder_mode: str = "raw_concat",
+        reliability_components: list[str] | tuple[str, ...] | None = None,
+        reliability_component_dim: int = 16,
+        component_missing_mode: str = "zero_slot",
     ):
         super().__init__()
         self.mode = mode
@@ -246,6 +549,10 @@ class ResidualAlphaFusion(nn.Module):
                 base_alpha=base_alpha,
                 max_adjustment=max_adjustment,
                 lambda_init=lambda_init,
+                reliability_encoder_mode=reliability_encoder_mode,
+                reliability_components=reliability_components,
+                reliability_component_dim=reliability_component_dim,
+                component_missing_mode=component_missing_mode,
             )
         )
         self.latest_alpha: torch.Tensor | None = None
@@ -289,6 +596,10 @@ class HiddenControlLayer(nn.Module):
         base_alpha: float,
         max_adjustment: float,
         lambda_init: float,
+        reliability_encoder_mode: str = "raw_concat",
+        reliability_components: list[str] | tuple[str, ...] | None = None,
+        reliability_component_dim: int = 16,
+        component_missing_mode: str = "zero_slot",
     ):
         super().__init__()
         try:
@@ -317,6 +628,10 @@ class HiddenControlLayer(nn.Module):
                 base_alpha=base_alpha,
                 max_adjustment=max_adjustment,
                 lambda_init=lambda_init,
+                reliability_encoder_mode=reliability_encoder_mode,
+                reliability_components=reliability_components,
+                reliability_component_dim=reliability_component_dim,
+                component_missing_mode=component_missing_mode,
             )
         )
         self.dropout = nn.Dropout(dropout)
@@ -368,6 +683,10 @@ class HiddenMixingNetwork(nn.Module):
         base_alpha: float,
         max_adjustment: float,
         lambda_init: float,
+        reliability_encoder_mode: str = "raw_concat",
+        reliability_components: list[str] | tuple[str, ...] | None = None,
+        reliability_component_dim: int = 16,
+        component_missing_mode: str = "zero_slot",
     ):
         super().__init__()
         if mode not in CONTROL_MODES:
@@ -386,6 +705,10 @@ class HiddenMixingNetwork(nn.Module):
                     base_alpha=base_alpha,
                     max_adjustment=max_adjustment,
                     lambda_init=lambda_init,
+                    reliability_encoder_mode=reliability_encoder_mode,
+                    reliability_components=reliability_components,
+                    reliability_component_dim=reliability_component_dim,
+                    component_missing_mode=component_missing_mode,
                 )
                 for _ in range(num_layers)
             ]
@@ -440,6 +763,10 @@ class GPSLikeControlLayer(nn.Module):
         base_alpha: float,
         max_adjustment: float,
         lambda_init: float,
+        reliability_encoder_mode: str = "raw_concat",
+        reliability_components: list[str] | tuple[str, ...] | None = None,
+        reliability_component_dim: int = 16,
+        component_missing_mode: str = "zero_slot",
     ):
         super().__init__()
         try:
@@ -468,6 +795,10 @@ class GPSLikeControlLayer(nn.Module):
                 base_alpha=base_alpha,
                 max_adjustment=max_adjustment,
                 lambda_init=lambda_init,
+                reliability_encoder_mode=reliability_encoder_mode,
+                reliability_components=reliability_components,
+                reliability_component_dim=reliability_component_dim,
+                component_missing_mode=component_missing_mode,
             )
         )
         self.dropout = nn.Dropout(dropout)
@@ -531,6 +862,10 @@ class GPSLikeNetwork(nn.Module):
         base_alpha: float,
         max_adjustment: float,
         lambda_init: float,
+        reliability_encoder_mode: str = "raw_concat",
+        reliability_components: list[str] | tuple[str, ...] | None = None,
+        reliability_component_dim: int = 16,
+        component_missing_mode: str = "zero_slot",
     ):
         super().__init__()
         if mode not in CONTROL_MODES:
@@ -549,6 +884,10 @@ class GPSLikeNetwork(nn.Module):
                     base_alpha=base_alpha,
                     max_adjustment=max_adjustment,
                     lambda_init=lambda_init,
+                    reliability_encoder_mode=reliability_encoder_mode,
+                    reliability_components=reliability_components,
+                    reliability_component_dim=reliability_component_dim,
+                    component_missing_mode=component_missing_mode,
                 )
                 for _ in range(num_layers)
             ]
@@ -598,6 +937,12 @@ class IterativeRelationLayer(nn.Module):
         base_alpha: float,
         max_adjustment: float,
         relation_steps: int,
+        reliability_encoder_mode: str = "raw_concat",
+        reliability_components: list[str] | tuple[str, ...] | None = None,
+        reliability_component_dim: int = 16,
+        component_missing_mode: str = "zero_slot",
+        alpha_type: str = "channel",
+        alpha_groups: int = 4,
     ):
         super().__init__()
         try:
@@ -628,6 +973,12 @@ class IterativeRelationLayer(nn.Module):
                 base_alpha=base_alpha,
                 max_adjustment=max_adjustment,
                 num_steps=relation_steps,
+                reliability_encoder_mode=reliability_encoder_mode,
+                reliability_components=reliability_components,
+                reliability_component_dim=reliability_component_dim,
+                component_missing_mode=component_missing_mode,
+                alpha_type=alpha_type,
+                alpha_groups=alpha_groups,
             )
         )
         self.dropout = nn.Dropout(dropout)
@@ -640,6 +991,7 @@ class IterativeRelationLayer(nn.Module):
             nn.Linear(hidden_dim * 2, hidden_dim),
         )
         self.latest_alpha: torch.Tensor | None = None
+        self.latest_alpha_raw: torch.Tensor | None = None
         self.latest_relation: torch.Tensor | None = None
         self.latest_state: torch.Tensor | None = None
         self.latest_update_gate: torch.Tensor | None = None
@@ -663,6 +1015,7 @@ class IterativeRelationLayer(nn.Module):
         )
         if self.controller is None:
             alpha = hidden.new_full(local_h.shape, self.base_alpha)
+            alpha_raw = hidden.new_full((hidden.size(0), 1), self.base_alpha)
             relation_h = torch.zeros_like(local_h)
             state = torch.zeros_like(local_h)
             update_gate = torch.zeros_like(local_h)
@@ -673,9 +1026,13 @@ class IterativeRelationLayer(nn.Module):
                 local_h,
                 global_h,
             )
+            alpha_raw = self.controller.latest_alpha_raw
         relation_h = self.relation_scale * relation_h
         mixed = base_mixed + relation_h
         self.latest_alpha = alpha.detach()
+        self.latest_alpha_raw = (
+            alpha_raw.detach() if alpha_raw is not None else None
+        )
         self.latest_relation = relation_h.detach()
         self.latest_state = state.detach()
         self.latest_update_gate = update_gate.detach()
@@ -701,6 +1058,12 @@ class IterativeRelationNetwork(nn.Module):
         base_alpha: float,
         max_adjustment: float,
         relation_steps: int,
+        reliability_encoder_mode: str = "raw_concat",
+        reliability_components: list[str] | tuple[str, ...] | None = None,
+        reliability_component_dim: int = 16,
+        component_missing_mode: str = "zero_slot",
+        alpha_type: str = "channel",
+        alpha_groups: int = 4,
     ):
         super().__init__()
         if mode not in CONTROL_MODES:
@@ -722,6 +1085,12 @@ class IterativeRelationNetwork(nn.Module):
                     base_alpha=base_alpha,
                     max_adjustment=max_adjustment,
                     relation_steps=relation_steps,
+                    reliability_encoder_mode=reliability_encoder_mode,
+                    reliability_components=reliability_components,
+                    reliability_component_dim=reliability_component_dim,
+                    component_missing_mode=component_missing_mode,
+                    alpha_type=alpha_type,
+                    alpha_groups=alpha_groups,
                 )
                 for _ in range(num_layers)
             ]

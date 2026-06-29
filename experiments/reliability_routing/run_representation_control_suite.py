@@ -19,7 +19,12 @@ from src.real_data import (
     primary_metric_for_dataset,
     validation_fingerprint,
 )
-from src.representation_control import CONTROL_MODES
+from src.representation_control import (
+    ALPHA_TYPES,
+    COMPONENT_MISSING_MODES,
+    CONTROL_MODES,
+    RELIABILITY_ENCODER_MODES,
+)
 
 
 FAMILIES = (
@@ -127,6 +132,17 @@ def parse_args() -> argparse.Namespace:
         choices=RELIABILITY_COMPONENTS,
         default=list(RELIABILITY_COMPONENTS),
     )
+    parser.add_argument(
+        "--reliability-encoder-mode",
+        choices=RELIABILITY_ENCODER_MODES,
+        default="raw_concat",
+    )
+    parser.add_argument("--reliability-component-dim", type=int, default=16)
+    parser.add_argument(
+        "--component-missing-mode",
+        choices=COMPONENT_MISSING_MODES,
+        default="zero_slot",
+    )
     parser.add_argument("--hidden-dim", type=int, default=64)
     parser.add_argument("--num-layers", type=int, default=2)
     parser.add_argument("--num-heads", type=int, default=4)
@@ -145,6 +161,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-adjustment", type=float, default=0.1)
     parser.add_argument("--lambda-init", type=float, default=0.001)
     parser.add_argument("--relation-steps", type=int, default=1)
+    parser.add_argument("--alpha-type", choices=ALPHA_TYPES, default="channel")
+    parser.add_argument("--alpha-groups", type=int, default=4)
     parser.add_argument("--device", choices=["cpu", "cuda"], default="cuda")
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--analyze-only", action="store_true")
@@ -236,6 +254,14 @@ def main() -> None:
 def validate_args(args) -> None:
     if args.runs < 1:
         raise ValueError("--runs must be positive")
+    if args.reliability_component_dim < 1:
+        raise ValueError("--reliability-component-dim must be positive")
+    alpha_type = getattr(args, "alpha_type", "channel")
+    alpha_groups = getattr(args, "alpha_groups", 4)
+    if alpha_groups < 1:
+        raise ValueError("--alpha-groups must be positive")
+    if alpha_type == "group" and args.hidden_dim % alpha_groups != 0:
+        raise ValueError("--hidden-dim must be divisible by --alpha-groups")
     if len(set(args.datasets)) != len(args.datasets):
         raise ValueError("--datasets contains duplicates")
     if len(set(args.families)) != len(args.families):
@@ -335,6 +361,11 @@ def run_experiments(
                     "--rw-samples", str(args.rw_samples),
                     "--rw-seed", str(args.rw_seed),
                     "--reliability-components", *args.reliability_components,
+                    "--reliability-encoder-mode", args.reliability_encoder_mode,
+                    "--reliability-component-dim",
+                    str(args.reliability_component_dim),
+                    "--component-missing-mode",
+                    args.component_missing_mode,
                     "--hidden-dim", str(args.hidden_dim),
                     "--num-layers", str(args.num_layers),
                     "--num-heads", str(args.num_heads),
@@ -348,6 +379,8 @@ def run_experiments(
                     "--max-adjustment", str(args.max_adjustment),
                     "--lambda-init", str(args.lambda_init),
                     "--relation-steps", str(args.relation_steps),
+                    "--alpha-type", args.alpha_type,
+                    "--alpha-groups", str(args.alpha_groups),
                     "--device", args.device,
                 ]
                 if args.save_node_diagnostics:
@@ -445,6 +478,19 @@ def analyze(args, out_dir) -> None:
         f"- Families: {', '.join(args.families)}",
         f"- Runs: {args.runs}",
         f"- Edge protocol: {args.edge_protocol}",
+        f"- Reliability encoder mode: {args.reliability_encoder_mode}",
+        f"- Reliability component dim: {args.reliability_component_dim}",
+        f"- Component missing mode: {args.component_missing_mode}",
+        (
+            f"- Iterative alpha type: {args.alpha_type}"
+            if uses_iterative
+            else "- Iterative alpha type: n/a"
+        ),
+        (
+            f"- Iterative alpha groups: {args.alpha_groups}"
+            if uses_iterative and args.alpha_type == "group"
+            else "- Iterative alpha groups: n/a"
+        ),
         f"- Max adjustment: {args.max_adjustment}",
         (
             f"- Initial scalar-alpha adjustment: {args.lambda_init}"
@@ -974,6 +1020,11 @@ def suite_config(args, root, fingerprints):
         "rw_samples": args.rw_samples,
         "rw_seed": args.rw_seed,
         "reliability_components": args.reliability_components,
+        "reliability_encoder_mode": args.reliability_encoder_mode,
+        "reliability_component_dim": args.reliability_component_dim,
+        "component_missing_mode": args.component_missing_mode,
+        "alpha_type": args.alpha_type,
+        "alpha_groups": args.alpha_groups,
         "hidden_dim": args.hidden_dim,
         "num_layers": args.num_layers,
         "num_heads": args.num_heads,
@@ -1060,6 +1111,11 @@ def result_complete(
         "backbone_trainable_parameters",
         "backbone_training_mode",
         "reliability_components",
+        "reliability_encoder_mode",
+        "reliability_component_dim",
+        "component_missing_mode",
+        "alpha_type",
+        "alpha_groups",
         "normalize_features",
         "rw_steps",
         "rw_samples",
@@ -1102,6 +1158,11 @@ def result_complete(
         return False
     expected = {
         "reliability_components": ",".join(args.reliability_components),
+        "reliability_encoder_mode": args.reliability_encoder_mode,
+        "reliability_component_dim": str(args.reliability_component_dim),
+        "component_missing_mode": args.component_missing_mode,
+        "alpha_type": args.alpha_type,
+        "alpha_groups": str(args.alpha_groups),
         "normalize_features": str(args.normalize_features),
         "rw_steps": str(args.rw_steps),
         "rw_samples": str(args.rw_samples),

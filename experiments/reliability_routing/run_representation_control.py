@@ -37,10 +37,13 @@ from src.real_data import (
     write_validation_report,
 )
 from src.representation_control import (
+    ALPHA_TYPES,
+    COMPONENT_MISSING_MODES,
     CONTROL_MODES,
     GPSLikeNetwork,
     HiddenMixingNetwork,
     IterativeRelationNetwork,
+    RELIABILITY_ENCODER_MODES,
     ResidualAlphaFusion,
 )
 
@@ -98,6 +101,17 @@ def parse_args() -> argparse.Namespace:
         choices=RELIABILITY_COMPONENTS,
         default=list(RELIABILITY_COMPONENTS),
     )
+    parser.add_argument(
+        "--reliability-encoder-mode",
+        choices=RELIABILITY_ENCODER_MODES,
+        default="raw_concat",
+    )
+    parser.add_argument("--reliability-component-dim", type=int, default=16)
+    parser.add_argument(
+        "--component-missing-mode",
+        choices=COMPONENT_MISSING_MODES,
+        default="zero_slot",
+    )
     parser.add_argument("--hidden-dim", type=int, default=64)
     parser.add_argument("--num-layers", type=int, default=2)
     parser.add_argument("--num-heads", type=int, default=4)
@@ -116,6 +130,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-adjustment", type=float, default=0.1)
     parser.add_argument("--lambda-init", type=float, default=0.001)
     parser.add_argument("--relation-steps", type=int, default=1)
+    parser.add_argument("--alpha-type", choices=ALPHA_TYPES, default="channel")
+    parser.add_argument("--alpha-groups", type=int, default=4)
     parser.add_argument("--device", choices=["cpu", "cuda"], default="cuda")
     parser.add_argument(
         "--save-node-diagnostics",
@@ -257,6 +273,14 @@ def validate_args(args) -> None:
         and args.relation_steps < 1
     ):
         raise ValueError("--relation-steps must be positive")
+    if getattr(args, "reliability_component_dim", 16) < 1:
+        raise ValueError("--reliability-component-dim must be positive")
+    alpha_type = getattr(args, "alpha_type", "channel")
+    alpha_groups = getattr(args, "alpha_groups", 4)
+    if alpha_groups < 1:
+        raise ValueError("--alpha-groups must be positive")
+    if alpha_type == "group" and args.hidden_dim % alpha_groups != 0:
+        raise ValueError("--hidden-dim must be divisible by --alpha-groups")
     if (
         args.causal_interventions
         and not args.family.startswith("iterative_relation_")
@@ -421,6 +445,11 @@ def train_one(args, base_data, device, split: int, seed: int) -> dict[str, objec
             else ""
         ),
         "reliability_components": ",".join(args.reliability_components),
+        "reliability_encoder_mode": args.reliability_encoder_mode,
+        "reliability_component_dim": args.reliability_component_dim,
+        "component_missing_mode": args.component_missing_mode,
+        "alpha_type": args.alpha_type,
+        "alpha_groups": args.alpha_groups,
         "normalize_features": args.normalize_features,
         "rw_steps": args.rw_steps,
         "rw_samples": args.rw_samples,
@@ -501,6 +530,10 @@ def train_residual_alpha(args, data, reliability_input, split, seed):
         base_alpha=baseline["alpha"],
         max_adjustment=args.max_adjustment,
         lambda_init=args.lambda_init,
+        reliability_encoder_mode=args.reliability_encoder_mode,
+        reliability_components=args.reliability_components,
+        reliability_component_dim=args.reliability_component_dim,
+        component_missing_mode=args.component_missing_mode,
     ).to(data.x.device)
     with torch.no_grad():
         baseline_logits = (
@@ -668,6 +701,10 @@ def build_hidden_model(args, in_dim, reliability_dim, out_dim, mode, base_alpha)
             base_alpha=base_alpha,
             max_adjustment=args.max_adjustment,
             lambda_init=args.lambda_init,
+            reliability_encoder_mode=args.reliability_encoder_mode,
+            reliability_components=args.reliability_components,
+            reliability_component_dim=args.reliability_component_dim,
+            component_missing_mode=args.component_missing_mode,
         )
     common = {
         "in_dim": in_dim,
@@ -680,11 +717,17 @@ def build_hidden_model(args, in_dim, reliability_dim, out_dim, mode, base_alpha)
         "mode": mode,
         "base_alpha": base_alpha,
         "max_adjustment": args.max_adjustment,
+        "reliability_encoder_mode": args.reliability_encoder_mode,
+        "reliability_components": args.reliability_components,
+        "reliability_component_dim": args.reliability_component_dim,
+        "component_missing_mode": args.component_missing_mode,
     }
     if args.family.startswith("iterative_relation_"):
         return IterativeRelationNetwork(
             **common,
             relation_steps=args.relation_steps,
+            alpha_type=args.alpha_type,
+            alpha_groups=args.alpha_groups,
         )
     return HiddenMixingNetwork(
         **common,
@@ -713,6 +756,10 @@ def build_baseline_hidden_model(
             base_alpha=base_alpha,
             max_adjustment=args.max_adjustment,
             lambda_init=args.lambda_init,
+            reliability_encoder_mode=args.reliability_encoder_mode,
+            reliability_components=args.reliability_components,
+            reliability_component_dim=args.reliability_component_dim,
+            component_missing_mode=args.component_missing_mode,
         )
     if args.family.startswith("iterative_relation_"):
         return IterativeRelationNetwork(
@@ -727,6 +774,12 @@ def build_baseline_hidden_model(
             base_alpha=base_alpha,
             max_adjustment=args.max_adjustment,
             relation_steps=args.relation_steps,
+            reliability_encoder_mode=args.reliability_encoder_mode,
+            reliability_components=args.reliability_components,
+            reliability_component_dim=args.reliability_component_dim,
+            component_missing_mode=args.component_missing_mode,
+            alpha_type=args.alpha_type,
+            alpha_groups=args.alpha_groups,
         )
     return HiddenMixingNetwork(
         in_dim=in_dim,
@@ -740,6 +793,10 @@ def build_baseline_hidden_model(
         base_alpha=base_alpha,
         max_adjustment=args.max_adjustment,
         lambda_init=args.lambda_init,
+        reliability_encoder_mode=args.reliability_encoder_mode,
+        reliability_components=args.reliability_components,
+        reliability_component_dim=args.reliability_component_dim,
+        component_missing_mode=args.component_missing_mode,
     )
 
 
@@ -1360,6 +1417,11 @@ def save_node_diagnostics(
                 args.relation_steps,
             ),
             "reliability_components": list(args.reliability_components),
+            "reliability_encoder_mode": args.reliability_encoder_mode,
+            "reliability_component_dim": args.reliability_component_dim,
+            "component_missing_mode": args.component_missing_mode,
+            "alpha_type": args.alpha_type,
+            "alpha_groups": args.alpha_groups,
             "hidden_dim": args.hidden_dim,
             "num_layers": args.num_layers,
             "num_heads": args.num_heads,
@@ -1491,6 +1553,7 @@ def collect_model_node_state(model) -> dict[str, object]:
         return state
     layer_attrs = (
         "latest_alpha",
+        "latest_alpha_raw",
         "latest_proposal",
         "latest_adjustment",
         "latest_relation",
