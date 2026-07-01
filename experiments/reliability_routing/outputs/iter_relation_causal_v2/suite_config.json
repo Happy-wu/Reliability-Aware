@@ -1,0 +1,61 @@
+{
+  "code_fingerprint": "c9443df3c8ea28769dd4c0c8a55063afd1a154f3fd0b3a9465c21e10a669ae9a",
+  "datasets": [
+    "Roman-empire",
+    "Amazon-ratings"
+  ],
+  "families": [
+    "iterative_relation_frozen",
+    "iterative_relation_finetune"
+  ],
+  "controls": [
+    "fixed",
+    "reliability_only",
+    "combined"
+  ],
+  "runs": 10,
+  "edge_protocol": "undirected",
+  "data_root": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data",
+  "expert_cache_dir": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/outputs/iter_relation_mechanism_v1/_expert_cache",
+  "backbone_cache_dir": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/outputs/iter_relation_mechanism_v1/_backbone_cache",
+  "save_node_diagnostics": true,
+  "node_diagnostics_dir": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/outputs/iter_relation_causal_v2/_node_diagnostics",
+  "causal_interventions": true,
+  "save_external_expert_logits": true,
+  "reuse_compatible_backbone_cache": true,
+  "compatible_backbone_cache_config": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/outputs/iter_relation_mechanism_v1/suite_config.json",
+  "data_fingerprints": {
+    "Roman-empire": "6c90251bafa0f69081c84b9e964786d57aac3b7be62fa376f64393b6cb87e624",
+    "Amazon-ratings": "41ca1f5d24e0096fbef58b0a50293e29950dbf0663fc652318997c8cb1f51379"
+  },
+  "normalize_features": true,
+  "rw_steps": 4,
+  "rw_samples": 128,
+  "rw_seed": 0,
+  "reliability_components": [
+    "degree",
+    "local_similarity",
+    "neighbor_variance",
+    "rwse"
+  ],
+  "hidden_dim": 64,
+  "num_layers": 2,
+  "num_heads": 4,
+  "dropout": 0.3,
+  "lr": 0.003,
+  "weight_decay": 0.0001,
+  "expert_epochs": 300,
+  "control_epochs": 200,
+  "patience": 60,
+  "fixed_alphas": [
+    0.0,
+    0.25,
+    0.5,
+    0.75,
+    1.0
+  ],
+  "max_adjustment": 0.1,
+  "lambda_init": 0.001,
+  "relation_steps": 1,
+  "device": "cuda"
+}

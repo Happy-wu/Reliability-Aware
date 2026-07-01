@@ -1,0 +1,43 @@
+{
+  "code_fingerprint": "58b605bfe5906da96d364827ecd53a03e2a2f8e9d4cb8c763905e6901df87536",
+  "datasets": [
+    "Cora",
+    "Citeseer",
+    "Pubmed",
+    "Chameleon",
+    "Squirrel",
+    "Actor"
+  ],
+  "data_root": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data",
+  "expert_cache_dir": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/outputs/expert_validation_full/_shared_expert_cache",
+  "data_fingerprints": {
+    "Cora": "b1b454ab1e4565619c24ee5251bb8a356262a72fbbc91d3875917dbfe4026068",
+    "Citeseer": "5fe85bd5adea457ee0f7a515b045f6f3383f2ff197fabe04843f371fbce7707b",
+    "Pubmed": "4795d40bde3d1d8757eeac0e3d66b3ec4c65ed4551bfa7cdbd84401a1e3417d9",
+    "Chameleon": "abec22f7a6e6818e16d1c945b3e711867850e016842f545f7a0b18cdff6376fd",
+    "Squirrel": "ac22b882828dbbd36263f4c827c77aa0795a6bd7f65b00c41b0e235875f7978d",
+    "Actor": "b9e1e067010d32c1abc894d5b53684da37fe0c3000d6c6089eb99475573861a0"
+  },
+  "models": [
+    "reliability_gate"
+  ],
+  "edge_protocol": "undirected",
+  "runs": 10,
+  "normalize_features": true,
+  "rw_steps": 4,
+  "rw_samples": 128,
+  "rw_seed": 0,
+  "reliability_components": [
+    "degree"
+  ],
+  "hidden_dim": 64,
+  "num_layers": 2,
+  "num_heads": 4,
+  "dropout": 0.3,
+  "lr": 0.003,
+  "weight_decay": 0.0001,
+  "expert_epochs": 500,
+  "gate_epochs": 300,
+  "patience": 100,
+  "device": "cuda"
+}

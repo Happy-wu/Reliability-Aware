@@ -1,0 +1,19 @@
+dataset,comparison,metric,n,mean_delta,ci95_low,ci95_high,wins,ties,losses
+Chameleon,reliability_only - node_feature_only,test_preference_auc,1,0.09360544217687083,0.09360544217687083,0.09360544217687083,1,0,0
+Chameleon,reliability_only - node_feature_only,test_balanced_accuracy,1,0.0714285714285714,0.0714285714285714,0.0714285714285714,1,0,0
+Chameleon,reliability_only - node_feature_only,test_routing_accuracy,1,0.09142857142857141,0.09142857142857141,0.09142857142857141,1,0,0
+Chameleon,combined - node_feature_only,test_preference_auc,1,0.05265306122448976,0.05265306122448976,0.05265306122448976,1,0,0
+Chameleon,combined - node_feature_only,test_balanced_accuracy,1,0.04285714285714293,0.04285714285714293,0.04285714285714293,1,0,0
+Chameleon,combined - node_feature_only,test_routing_accuracy,1,0.05714285714285716,0.05714285714285716,0.05714285714285716,1,0,0
+Actor,reliability_only - node_feature_only,test_preference_auc,1,-0.019165750132388082,-0.019165750132388082,-0.019165750132388082,0,0,1
+Actor,reliability_only - node_feature_only,test_balanced_accuracy,1,-0.03259806916778685,-0.03259806916778685,-0.03259806916778685,0,0,1
+Actor,reliability_only - node_feature_only,test_routing_accuracy,1,-0.015184381778741818,-0.015184381778741818,-0.015184381778741818,0,0,1
+Actor,combined - node_feature_only,test_preference_auc,1,-0.019725854413621624,-0.019725854413621624,-0.019725854413621624,0,0,1
+Actor,combined - node_feature_only,test_balanced_accuracy,1,-0.03149822803372848,-0.03149822803372848,-0.03149822803372848,0,0,1
+Actor,combined - node_feature_only,test_routing_accuracy,1,-0.036876355748373,-0.036876355748373,-0.036876355748373,0,0,1
+Roman-empire,reliability_only - node_feature_only,test_preference_auc,1,-0.03397181628392487,-0.03397181628392487,-0.03397181628392487,0,0,1
+Roman-empire,reliability_only - node_feature_only,test_balanced_accuracy,1,0.00999652052887956,0.00999652052887956,0.00999652052887956,1,0,0
+Roman-empire,reliability_only - node_feature_only,test_routing_accuracy,1,-0.25117686617350365,-0.25117686617350365,-0.25117686617350365,0,0,1
+Roman-empire,combined - node_feature_only,test_preference_auc,1,0.029455462769658936,0.029455462769658936,0.029455462769658936,1,0,0
+Roman-empire,combined - node_feature_only,test_balanced_accuracy,1,0.08456854558107174,0.08456854558107174,0.08456854558107174,1,0,0
+Roman-empire,combined - node_feature_only,test_routing_accuracy,1,0.02353732347007398,0.02353732347007398,0.02353732347007398,1,0,0

@@ -1,0 +1,99 @@
+[
+  {
+    "dataset": "Amazon-ratings",
+    "status": "valid",
+    "source": "PyG HeterophilousGraphDataset",
+    "source_url": "https://github.com/yandex-research/heterophilous-graphs",
+    "officially_undirected": true,
+    "primary_metric": "accuracy",
+    "expected": {
+      "num_nodes": 24492,
+      "num_edges": 186100,
+      "num_features": 300,
+      "num_classes": 5,
+      "num_splits": 10,
+      "source": "PyG HeterophilousGraphDataset",
+      "source_url": "https://github.com/yandex-research/heterophilous-graphs"
+    },
+    "actual": {
+      "num_nodes": 24492,
+      "num_edges": 186100,
+      "num_features": 300,
+      "num_classes": 5,
+      "num_splits": 10
+    },
+    "splits": {
+      "count": 10,
+      "sizes": [
+        {
+          "split": 0,
+          "train": 12246,
+          "val": 6123,
+          "test": 6123
+        },
+        {
+          "split": 1,
+          "train": 12246,
+          "val": 6123,
+          "test": 6123
+        },
+        {
+          "split": 2,
+          "train": 12246,
+          "val": 6123,
+          "test": 6123
+        },
+        {
+          "split": 3,
+          "train": 12246,
+          "val": 6123,
+          "test": 6123
+        },
+        {
+          "split": 4,
+          "train": 12246,
+          "val": 6123,
+          "test": 6123
+        },
+        {
+          "split": 5,
+          "train": 12246,
+          "val": 6123,
+          "test": 6123
+        },
+        {
+          "split": 6,
+          "train": 12246,
+          "val": 6123,
+          "test": 6123
+        },
+        {
+          "split": 7,
+          "train": 12246,
+          "val": 6123,
+          "test": 6123
+        },
+        {
+          "split": 8,
+          "train": 12246,
+          "val": 6123,
+          "test": 6123
+        },
+        {
+          "split": 9,
+          "train": 12246,
+          "val": 6123,
+          "test": 6123
+        }
+      ]
+    },
+    "raw_files": [
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/amazon_ratings/raw/amazon_ratings.npz",
+        "size_bytes": 27744018,
+        "sha256": "4c3a3e3b9d9f6cba0fede4625a00aad8c5721c1a36ed771367f446763241c7dd"
+      }
+    ],
+    "errors": []
+  }
+]

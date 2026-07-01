@@ -99,14 +99,33 @@ print("sparse ok:", torch_sparse.__version__)
 PY
 ```
 
-## 7. Run Current Smoke Test
+## 7. Prepare and Validate Real Datasets
+
+The real-data pipeline uses PyG's official dataset loaders. Before training, run:
+
+```bash
+python prepare_real_datasets.py \
+  --datasets Cora Citeseer Pubmed Chameleon Squirrel Actor \
+  --data-root data \
+  --report outputs/real_dataset_validation.json
+```
+
+This command:
+
+- reuses valid local Cora/CiteSeer/PubMed files;
+- downloads missing datasets through the official PyG loaders;
+- verifies expected nodes, edges, features, classes, labels, and split masks;
+- records raw-file size and SHA-256 in the validation report;
+- stops before training if validation fails.
+
+## 8. Run Current Smoke Test
 
 The server is currently heavily occupied, so start with a small CPU or selected-GPU test.
 
 Use CPU:
 
 ```bash
-python run_synthetic.py --graph-type heterophily --model reliability_gt \
+python scripts/legacy_synthetic/run_synthetic.py --graph-type heterophily --model reliability_gt \
   --num-nodes 180 --epochs 3 --patience 3 --seeds 0 \
   --hidden-dim 32 --num-heads 4 --device cpu
 ```
@@ -114,14 +133,14 @@ python run_synthetic.py --graph-type heterophily --model reliability_gt \
 Use one visible GPU:
 
 ```bash
-CUDA_VISIBLE_DEVICES=0 python run_synthetic.py --graph-type heterophily --model reliability_gt \
+CUDA_VISIBLE_DEVICES=0 python scripts/legacy_synthetic/run_synthetic.py --graph-type heterophily --model reliability_gt \
   --num-nodes 900 --epochs 300 --seeds 0 1 2 \
   --hidden-dim 64 --num-heads 4 --device cuda
 ```
 
 Because `CUDA_VISIBLE_DEVICES=0` remaps that GPU to `cuda:0` inside the process, keep `--device cuda`.
 
-## 8. GPU Selection Notes
+## 9. GPU Selection Notes
 
 Your `nvidia-smi` snapshot shows all GPUs are already using about 29-31 GB memory, and GPU 2/3 have non-trivial utilization. For this small experiment, CPU is fine. For later real datasets, choose the GPU with:
 
@@ -133,10 +152,10 @@ Example:
 
 ```bash
 watch -n 2 nvidia-smi
-CUDA_VISIBLE_DEVICES=0 python run_synthetic.py --graph-type heterophily --model reliability_gt --device cuda
+CUDA_VISIBLE_DEVICES=0 python scripts/legacy_synthetic/run_synthetic.py --graph-type heterophily --model reliability_gt --device cuda
 ```
 
-## 9. Recommended Version Matrix
+## 10. Recommended Version Matrix
 
 | Stage | Python | PyTorch | CUDA wheel | PyG | Use case |
 |---|---:|---:|---:|---:|---|

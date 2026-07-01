@@ -1,0 +1,21 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Downloaded and generated datasets can be several gigabytes.
+data/
+
+# Reusable expert checkpoints are generated artifacts and can be large.
+outputs/**/_expert_cache/
+outputs/**/_shared_expert_cache/
+outputs/**/_preference_cache/
+outputs/**/_node_diagnostics/
+outputs/**/_backbone_cache/
+outputs/**/*.pt
+
+# Local dataset bundles are distribution artifacts, not source or results.
+*.zip

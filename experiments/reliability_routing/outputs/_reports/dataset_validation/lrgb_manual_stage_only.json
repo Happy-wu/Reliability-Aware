@@ -1,0 +1,56 @@
+[
+  {
+    "dataset": "PascalVOC-SP",
+    "task": "multi-graph node classification",
+    "pyg_name": "PascalVOC-SP",
+    "manual_raw_dir": "D:\\Desktop\\调研\\experiments\\reliability_routing\\data\\lrgb_manual\\pascalvocsp\\raw",
+    "pyg_raw_dir": "D:\\Desktop\\调研\\experiments\\reliability_routing\\data\\lrgb_pyg\\pascalvoc-sp\\raw",
+    "raw_files": [
+      {
+        "name": "train.pickle",
+        "source": "D:\\Desktop\\调研\\experiments\\reliability_routing\\data\\lrgb_manual\\pascalvocsp\\raw\\train.pickle",
+        "target": "D:\\Desktop\\调研\\experiments\\reliability_routing\\data\\lrgb_pyg\\pascalvoc-sp\\raw\\train.pickle",
+        "size_bytes": 875965267
+      },
+      {
+        "name": "val.pickle",
+        "source": "D:\\Desktop\\调研\\experiments\\reliability_routing\\data\\lrgb_manual\\pascalvocsp\\raw\\val.pickle",
+        "target": "D:\\Desktop\\调研\\experiments\\reliability_routing\\data\\lrgb_pyg\\pascalvoc-sp\\raw\\val.pickle",
+        "size_bytes": 147337953
+      },
+      {
+        "name": "test.pickle",
+        "source": "D:\\Desktop\\调研\\experiments\\reliability_routing\\data\\lrgb_manual\\pascalvocsp\\raw\\test.pickle",
+        "target": "D:\\Desktop\\调研\\experiments\\reliability_routing\\data\\lrgb_pyg\\pascalvoc-sp\\raw\\test.pickle",
+        "size_bytes": 147542030
+      }
+    ]
+  },
+  {
+    "dataset": "PCQM-Contact",
+    "task": "multi-graph link prediction",
+    "pyg_name": "PCQM-Contact",
+    "manual_raw_dir": "D:\\Desktop\\调研\\experiments\\reliability_routing\\data\\lrgb_manual\\pcqmcontact\\raw",
+    "pyg_raw_dir": "D:\\Desktop\\调研\\experiments\\reliability_routing\\data\\lrgb_pyg\\pcqm-contact\\raw",
+    "raw_files": [
+      {
+        "name": "train.pt",
+        "source": "D:\\Desktop\\调研\\experiments\\reliability_routing\\data\\lrgb_manual\\pcqmcontact\\raw\\train.pt",
+        "target": "D:\\Desktop\\调研\\experiments\\reliability_routing\\data\\lrgb_pyg\\pcqm-contact\\raw\\train.pt",
+        "size_bytes": 3339155776
+      },
+      {
+        "name": "val.pt",
+        "source": "D:\\Desktop\\调研\\experiments\\reliability_routing\\data\\lrgb_manual\\pcqmcontact\\raw\\val.pt",
+        "target": "D:\\Desktop\\调研\\experiments\\reliability_routing\\data\\lrgb_pyg\\pcqm-contact\\raw\\val.pt",
+        "size_bytes": 2492077513
+      },
+      {
+        "name": "test.pt",
+        "source": "D:\\Desktop\\调研\\experiments\\reliability_routing\\data\\lrgb_manual\\pcqmcontact\\raw\\test.pt",
+        "target": "D:\\Desktop\\调研\\experiments\\reliability_routing\\data\\lrgb_pyg\\pcqm-contact\\raw\\test.pt",
+        "size_bytes": 2492380169
+      }
+    ]
+  }
+]

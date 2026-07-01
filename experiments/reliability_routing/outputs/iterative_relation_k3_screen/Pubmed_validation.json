@@ -1,0 +1,79 @@
+[
+  {
+    "dataset": "Pubmed",
+    "status": "valid",
+    "source": "PyG Planetoid",
+    "source_url": "https://github.com/kimiyoung/planetoid",
+    "officially_undirected": false,
+    "expected": {
+      "num_nodes": 19717,
+      "num_edges": 88648,
+      "num_features": 500,
+      "num_classes": 3,
+      "num_splits": 1,
+      "source": "PyG Planetoid",
+      "source_url": "https://github.com/kimiyoung/planetoid"
+    },
+    "actual": {
+      "num_nodes": 19717,
+      "num_edges": 88648,
+      "num_features": 500,
+      "num_classes": 3,
+      "num_splits": 1
+    },
+    "splits": {
+      "count": 1,
+      "sizes": [
+        {
+          "split": 0,
+          "train": 60,
+          "val": 500,
+          "test": 1000
+        }
+      ]
+    },
+    "raw_files": [
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/Pubmed/raw/ind.pubmed.x",
+        "size_bytes": 23172,
+        "sha256": "fbe9cb5c47200d1b7769a26e579be3b7130b556831f9d850e77c4c74f2599b33"
+      },
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/Pubmed/raw/ind.pubmed.tx",
+        "size_bytes": 405505,
+        "sha256": "4eb5f5d0f30f26497eb0ac6ac9719d09c67e284f1ed0385c93f3ef27a671da3d"
+      },
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/Pubmed/raw/ind.pubmed.allx",
+        "size_bytes": 7578385,
+        "sha256": "508e538e2abdccdd54c4d3e9f49d638b4af7107d85845f66ddea5a5152658b7e"
+      },
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/Pubmed/raw/ind.pubmed.y",
+        "size_bytes": 854,
+        "sha256": "e6c807633307a07ed659249006536a147c7999c797f11a2560752990181b41b3"
+      },
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/Pubmed/raw/ind.pubmed.ty",
+        "size_bytes": 12135,
+        "sha256": "ee2e0d4819d9fbcc403689c3bf2e49face401b605932f093bc58ab6461130fdd"
+      },
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/Pubmed/raw/ind.pubmed.ally",
+        "size_bytes": 224739,
+        "sha256": "0c37bbe3b5014ec365e9d393cf4791925e5ed94fb194305d74f064a8d7b50f0e"
+      },
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/Pubmed/raw/ind.pubmed.graph",
+        "size_bytes": 471808,
+        "sha256": "5b89f0036ca22909471f1e6558eb42fa06e0c730a577bde5b058b40638f81dc9"
+      },
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/Pubmed/raw/ind.pubmed.test.index",
+        "size_bytes": 6000,
+        "sha256": "b101d421688bbaecbd82e8a18f1e282378d6830f3a37666f28ebc47f844341b5"
+      }
+    ],
+    "errors": []
+  }
+]

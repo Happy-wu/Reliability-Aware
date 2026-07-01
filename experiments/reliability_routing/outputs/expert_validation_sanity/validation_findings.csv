@@ -1,0 +1,42 @@
+dataset,claim,status,estimate,ci_low,ci_high,detail
+Cora,H1 alpha=1 recovers GCN,PASS,0.0,0.0,0.0,paired delta=+0.0000
+Cora,H1 alpha=0 recovers global expert,PASS,0.0,0.0,0.0,paired delta=+0.0000
+Cora,H2 ordinary gate beats validation-selected fixed alpha,NOT_SUPPORTED,-0.23300002018610635,-0.2717239518581099,-0.19427608851410283,"delta=-0.2330, CI=[-0.2717, -0.1943]"
+Cora,H3 reliability adds value beyond ordinary gating,INCONCLUSIVE,0.0013333360354105632,-0.0015351049317255613,0.004201777002546688,"delta=+0.0013, CI=[-0.0015, +0.0042]"
+Cora,H4 global expert provides complementary predictions,SUPPORTED,0.055000003427267075,nan,nan,"global-only correct fraction=+0.0550, P(global correct | local wrong)=+0.2763"
+Chameleon,H1 alpha=1 recovers GCN,PASS,0.0,0.0,0.0,paired delta=+0.0000
+Chameleon,H1 alpha=0 recovers global expert,PASS,0.0,0.0,0.0,paired delta=+0.0000
+Chameleon,H2 ordinary gate beats validation-selected fixed alpha,INCONCLUSIVE,-0.05482455094655355,-0.18153410143627957,0.07188499954317246,"delta=-0.0548, CI=[-0.1815, +0.0719]"
+Chameleon,H3 reliability adds value beyond ordinary gating,INCONCLUSIVE,-9.934107462565104e-09,-0.01634306990140328,0.016343050033188353,"delta=-0.0000, CI=[-0.0163, +0.0163]"
+Chameleon,H4 global expert provides complementary predictions,SUPPORTED,0.14766081919272742,nan,nan,"global-only correct fraction=+0.1477, P(global correct | local wrong)=+0.3165"
+Actor,H1 alpha=1 recovers GCN,PASS,0.0,0.0,0.0,paired delta=+0.0000
+Actor,H1 alpha=0 recovers global expert,PASS,0.0,0.0,0.0,paired delta=+0.0000
+Actor,H2 ordinary gate beats validation-selected fixed alpha,INCONCLUSIVE,-0.001096487045288086,-0.008645010279668363,0.006452036189092191,"delta=-0.0011, CI=[-0.0086, +0.0065]"
+Actor,H3 reliability adds value beyond ordinary gating,INCONCLUSIVE,-0.0004386007785797119,-0.0013821741979072196,0.0005049726407477958,"delta=-0.0004, CI=[-0.0014, +0.0005]"
+Actor,H4 global expert provides complementary predictions,SUPPORTED,0.18157895902792612,nan,nan,"global-only correct fraction=+0.1816, P(global correct | local wrong)=+0.2549"
+Chameleon,H5 GCN is sensitive to directed edge protocol,SUPPORTED,0.13011696934700012,nan,nan,"undirected=+0.5329, source_to_target=+0.4306, target_to_source=+0.5607"
+Actor,H5 GCN is sensitive to directed edge protocol,NOT_SUPPORTED,0.01381579041481018,nan,nan,"undirected=+0.2879, source_to_target=+0.2888, target_to_source=+0.2750"
+Cora,H6 degree reliability vs ordinary gate,INCONCLUSIVE,0.0003333290417989095,-0.0011008700697841681,0.001767528153381987,"delta=+0.0003, CI=[-0.0011, +0.0018]"
+Cora,H6 degree reliability vs full reliability,INCONCLUSIVE,-0.0010000069936116536,-0.0034841867564843493,0.001484172769261042,"delta=-0.0010, CI=[-0.0035, +0.0015]"
+Chameleon,H6 degree reliability vs ordinary gate,INCONCLUSIVE,-0.0014619926611582439,-0.01280222118386725,0.009878235861550764,"delta=-0.0015, CI=[-0.0128, +0.0099]"
+Chameleon,H6 degree reliability vs full reliability,INCONCLUSIVE,-0.0014619827270507812,-0.028881365040860085,0.025957399586758523,"delta=-0.0015, CI=[-0.0289, +0.0260]"
+Actor,H6 degree reliability vs ordinary gate,INCONCLUSIVE,-0.00021930535634358725,-0.0027157498103922264,0.0022771390977050516,"delta=-0.0002, CI=[-0.0027, +0.0023]"
+Actor,H6 degree reliability vs full reliability,INCONCLUSIVE,0.00021929542223612467,-0.002277108643420848,0.0027156994878930973,"delta=+0.0002, CI=[-0.0023, +0.0027]"
+Cora,H6 local_similarity reliability vs ordinary gate,INCONCLUSIVE,0.0006666779518127441,-0.0007675639046956536,0.002100919808321142,"delta=+0.0007, CI=[-0.0008, +0.0021]"
+Cora,H6 local_similarity reliability vs full reliability,INCONCLUSIVE,-0.000666658083597819,-0.0021008571951808964,0.0007675410279852586,"delta=-0.0007, CI=[-0.0021, +0.0008]"
+Chameleon,H6 local_similarity reliability vs ordinary gate,INCONCLUSIVE,-0.002192993958791097,-0.01162868540179076,0.007242697484208565,"delta=-0.0022, CI=[-0.0116, +0.0072]"
+Chameleon,H6 local_similarity reliability vs full reliability,INCONCLUSIVE,-0.0021929840246836343,-0.011628632724668707,0.007242664675301439,"delta=-0.0022, CI=[-0.0116, +0.0072]"
+Actor,H6 local_similarity reliability vs ordinary gate,INCONCLUSIVE,-9.934107462565104e-09,-0.0016343270359363221,0.0016343071677213969,"delta=-0.0000, CI=[-0.0016, +0.0016]"
+Actor,H6 local_similarity reliability vs full reliability,INCONCLUSIVE,0.00043859084447224933,-0.0014485132497160105,0.0023256949386605092,"delta=+0.0004, CI=[-0.0014, +0.0023]"
+Cora,H6 neighbor_variance reliability vs ordinary gate,INCONCLUSIVE,0.0010000069936116536,-0.001484172769261042,0.0034841867564843493,"delta=+0.0010, CI=[-0.0015, +0.0035]"
+Cora,H6 neighbor_variance reliability vs full reliability,INCONCLUSIVE,-0.0003333290417989095,-0.001767528153381987,0.0011008700697841681,"delta=-0.0003, CI=[-0.0018, +0.0011]"
+Chameleon,H6 neighbor_variance reliability vs ordinary gate,INCONCLUSIVE,0.004385958115259807,-0.00650937817974591,0.015281294410265524,"delta=+0.0044, CI=[-0.0065, +0.0153]"
+Chameleon,H6 neighbor_variance reliability vs full reliability,INCONCLUSIVE,0.004385968049367269,-0.010027242071453803,0.018799178170188342,"delta=+0.0044, CI=[-0.0100, +0.0188]"
+Actor,H6 neighbor_variance reliability vs ordinary gate,INCONCLUSIVE,0.00021929542223612467,-0.0007242566248580052,0.0011628474693302546,"delta=+0.0002, CI=[-0.0007, +0.0012]"
+Actor,H6 neighbor_variance reliability vs full reliability,INCONCLUSIVE,0.0006578962008158366,-0.000976420901013023,0.002292213302644696,"delta=+0.0007, CI=[-0.0010, +0.0023]"
+Cora,H6 rwse reliability vs ordinary gate,INCONCLUSIVE,0.0003333290417989095,-0.0011008700697841681,0.001767528153381987,"delta=+0.0003, CI=[-0.0011, +0.0018]"
+Cora,H6 rwse reliability vs full reliability,INCONCLUSIVE,-0.0010000069936116536,-0.0034841867564843493,0.001484172769261042,"delta=-0.0010, CI=[-0.0035, +0.0015]"
+Chameleon,H6 rwse reliability vs ordinary gate,INCONCLUSIVE,-0.002192974090576172,-0.007640623729800315,0.003254675548647971,"delta=-0.0022, CI=[-0.0076, +0.0033]"
+Chameleon,H6 rwse reliability vs full reliability,INCONCLUSIVE,-0.0021929641564687095,-0.021834846926911716,0.0174489186139743,"delta=-0.0022, CI=[-0.0218, +0.0174]"
+Actor,H6 rwse reliability vs ordinary gate,INCONCLUSIVE,0.0,-0.0016342800851526552,0.0016342800851526552,"delta=+0.0000, CI=[-0.0016, +0.0016]"
+Actor,H6 rwse reliability vs full reliability,INCONCLUSIVE,0.0004386007785797119,-0.002057811365100603,0.002935012922260027,"delta=+0.0004, CI=[-0.0021, +0.0029]"

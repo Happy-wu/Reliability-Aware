@@ -1,0 +1,35 @@
+dataset,family,comparison,n,mean_delta,ci95_low,ci95_high,wins,ties,losses,pvalue
+Roman-empire,iterative_relation_frozen,reliability_only - fixed,3,0.0196493665377299,0.013860541468948238,0.025438191606511562,3,0,0,0.004655540149546593
+Roman-empire,iterative_relation_frozen,combined - fixed,3,0.013001521428426107,-0.0033579843274127528,0.02936102718426497,3,0,0,0.07591210990765829
+Roman-empire,iterative_relation_frozen,shuffled_reliability - fixed,3,0.003647466500600179,-0.007316127384554684,0.014611060385755043,2,0,1,0.28862448587924394
+Roman-empire,iterative_relation_frozen,constant_reliability - fixed,3,0.00841273864110311,-0.002612055868562087,0.019437533150768307,3,0,0,0.081576506547617
+Roman-empire,iterative_relation_frozen,true reliability - shuffled reliability,3,0.01600190003712972,0.007384473075424933,0.024619326998834505,3,0,0,0.015306579913865912
+Roman-empire,iterative_relation_frozen,true reliability - constant reliability,3,0.011236627896626791,0.0009514975932040041,0.021521758200049576,3,0,0,0.0423984869089725
+Roman-empire,iterative_relation_finetune,reliability_only - fixed,3,0.018178621927897137,-0.0013351552098048135,0.03769239906559908,3,0,0,0.05697522376568377
+Roman-empire,iterative_relation_finetune,combined - fixed,3,0.020472983519236248,-0.003448475315610551,0.04439444235408305,3,0,0,0.06647696467955766
+Roman-empire,iterative_relation_finetune,shuffled_reliability - fixed,3,-0.001176595687866211,-0.01591021819989383,0.013557026824161409,1,0,2,0.763906117708514
+Roman-empire,iterative_relation_finetune,constant_reliability - fixed,3,-0.0018825729688008626,-0.013534604752807254,0.009769458815205528,1,0,2,0.5588603141762931
+Roman-empire,iterative_relation_finetune,true reliability - shuffled reliability,3,0.019355217615763348,0.004759142026062665,0.03395129320546403,3,0,0,0.029372061938705292
+Roman-empire,iterative_relation_finetune,true reliability - constant reliability,3,0.020061194896697998,0.004166437079896956,0.03595595271349904,3,0,0,0.03227676245839285
+Amazon-ratings,iterative_relation_frozen,reliability_only - fixed,3,0.0,0.0,0.0,0,3,0,nan
+Amazon-ratings,iterative_relation_frozen,combined - fixed,3,-0.001088788112004598,-0.00577346525418189,0.0035958890301726948,0,2,1,0.42264973081037427
+Amazon-ratings,iterative_relation_frozen,shuffled_reliability - fixed,3,0.0,0.0,0.0,0,3,0,nan
+Amazon-ratings,iterative_relation_frozen,constant_reliability - fixed,3,0.0,0.0,0.0,0,3,0,nan
+Amazon-ratings,iterative_relation_frozen,true reliability - shuffled reliability,3,0.0,0.0,0.0,0,3,0,nan
+Amazon-ratings,iterative_relation_frozen,true reliability - constant reliability,3,0.0,0.0,0.0,0,3,0,nan
+Amazon-ratings,iterative_relation_finetune,reliability_only - fixed,3,0.004082977771759033,-0.012441761477724456,0.020607717021242523,2,1,0,0.39911373783866877
+Amazon-ratings,iterative_relation_finetune,combined - fixed,3,0.003103057543436686,-0.012039066016230537,0.01824518110310391,1,1,1,0.47092730931988613
+Amazon-ratings,iterative_relation_finetune,shuffled_reliability - fixed,3,0.0007077157497406006,-0.020646205465625112,0.022061636965106313,1,1,1,0.8996757614801021
+Amazon-ratings,iterative_relation_finetune,constant_reliability - fixed,3,0.0036474565664927163,-0.010326340185088646,0.017621253318074077,2,1,0,0.37810718052313064
+Amazon-ratings,iterative_relation_finetune,true reliability - shuffled reliability,3,0.0033752620220184326,-0.006923099479471138,0.013673623523508004,2,1,0,0.2939028692013981
+Amazon-ratings,iterative_relation_finetune,true reliability - constant reliability,3,0.0004355212052663167,-0.002172815063592976,0.00304385747412561,1,1,1,0.5470868023110498
+Roman-empire,iterative_relation_protocol,fixed: finetune - frozen,3,0.005118230978647868,-0.006373240501899712,0.01660970245919545,2,1,0,0.19537500451787831
+Roman-empire,iterative_relation_protocol,reliability_only: finetune - frozen,3,0.003647486368815104,-0.009227275994494386,0.016522248732124593,2,0,1,0.34711752519345707
+Roman-empire,iterative_relation_protocol,combined: finetune - frozen,3,0.012589693069458008,-0.008809697974915143,0.033989084113831156,3,0,0,0.12700404990621023
+Roman-empire,iterative_relation_protocol,shuffled_reliability: finetune - frozen,3,0.00029416879018147785,-0.0069939406679162906,0.007582278248279246,2,0,1,0.8781142777677515
+Roman-empire,iterative_relation_protocol,constant_reliability: finetune - frozen,3,-0.0051770806312561035,-0.01790159517856562,0.007547433916053415,0,0,3,0.2221218015730178
+Amazon-ratings,iterative_relation_protocol,fixed: finetune - frozen,3,0.004082957903544108,-0.013484592065374387,0.021650507872462605,1,2,0,0.42264973081037427
+Amazon-ratings,iterative_relation_protocol,reliability_only: finetune - frozen,3,0.00816593567530314,-0.009443767762162726,0.025775639112769005,2,1,0,0.18415581768943115
+Amazon-ratings,iterative_relation_protocol,combined: finetune - frozen,3,0.008274803558985392,-0.0026215049126976694,0.01917111203066845,3,0,0,0.08227028288710343
+Amazon-ratings,iterative_relation_protocol,shuffled_reliability: finetune - frozen,3,0.004790673653284709,-0.0071782344062183865,0.016759581712787804,2,1,0,0.22717830159034685
+Amazon-ratings,iterative_relation_protocol,constant_reliability: finetune - frozen,3,0.007730414470036824,-0.009296349129132901,0.024757178069206548,2,1,0,0.189985222627452

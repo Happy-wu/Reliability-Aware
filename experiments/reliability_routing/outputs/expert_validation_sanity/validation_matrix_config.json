@@ -1,0 +1,161 @@
+{
+  "profile": "sanity",
+  "datasets": [
+    "Cora",
+    "Chameleon",
+    "Actor"
+  ],
+  "directed_datasets": [
+    "Chameleon",
+    "Squirrel",
+    "Actor"
+  ],
+  "runs": 3,
+  "include_directed": true,
+  "include_components": true,
+  "expert_epochs": 100,
+  "gate_epochs": 80,
+  "patience": 30,
+  "suites": [
+    {
+      "name": "core_undirected",
+      "datasets": [
+        "Cora",
+        "Chameleon",
+        "Actor"
+      ],
+      "models": [
+        "gcn_pyg",
+        "global_only",
+        "ordinary_gate",
+        "reliability_gate"
+      ],
+      "fixed_alphas": [
+        0.0,
+        0.5,
+        1.0
+      ],
+      "edge_protocol": "undirected",
+      "reliability_components": [
+        "degree",
+        "local_similarity",
+        "neighbor_variance",
+        "rwse"
+      ]
+    },
+    {
+      "name": "directed_source_to_target",
+      "datasets": [
+        "Chameleon",
+        "Actor"
+      ],
+      "models": [
+        "gcn_pyg",
+        "global_only",
+        "ordinary_gate",
+        "reliability_gate"
+      ],
+      "fixed_alphas": [
+        0.0,
+        0.5,
+        1.0
+      ],
+      "edge_protocol": "source_to_target",
+      "reliability_components": [
+        "degree",
+        "local_similarity",
+        "neighbor_variance",
+        "rwse"
+      ]
+    },
+    {
+      "name": "directed_target_to_source",
+      "datasets": [
+        "Chameleon",
+        "Actor"
+      ],
+      "models": [
+        "gcn_pyg",
+        "global_only",
+        "ordinary_gate",
+        "reliability_gate"
+      ],
+      "fixed_alphas": [
+        0.0,
+        0.5,
+        1.0
+      ],
+      "edge_protocol": "target_to_source",
+      "reliability_components": [
+        "degree",
+        "local_similarity",
+        "neighbor_variance",
+        "rwse"
+      ]
+    },
+    {
+      "name": "component_degree",
+      "datasets": [
+        "Cora",
+        "Chameleon",
+        "Actor"
+      ],
+      "models": [
+        "reliability_gate"
+      ],
+      "fixed_alphas": [],
+      "edge_protocol": "undirected",
+      "reliability_components": [
+        "degree"
+      ]
+    },
+    {
+      "name": "component_local_similarity",
+      "datasets": [
+        "Cora",
+        "Chameleon",
+        "Actor"
+      ],
+      "models": [
+        "reliability_gate"
+      ],
+      "fixed_alphas": [],
+      "edge_protocol": "undirected",
+      "reliability_components": [
+        "local_similarity"
+      ]
+    },
+    {
+      "name": "component_neighbor_variance",
+      "datasets": [
+        "Cora",
+        "Chameleon",
+        "Actor"
+      ],
+      "models": [
+        "reliability_gate"
+      ],
+      "fixed_alphas": [],
+      "edge_protocol": "undirected",
+      "reliability_components": [
+        "neighbor_variance"
+      ]
+    },
+    {
+      "name": "component_rwse",
+      "datasets": [
+        "Cora",
+        "Chameleon",
+        "Actor"
+      ],
+      "models": [
+        "reliability_gate"
+      ],
+      "fixed_alphas": [],
+      "edge_protocol": "undirected",
+      "reliability_components": [
+        "rwse"
+      ]
+    }
+  ]
+}

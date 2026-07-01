@@ -1,0 +1,64 @@
+{
+  "code_fingerprint": "45369d359a12191882363f0de04f221e69bdeb2228da33e4fafe60a0df93536a",
+  "datasets": [
+    "Roman-empire",
+    "Amazon-ratings",
+    "Cora",
+    "Pubmed"
+  ],
+  "families": [
+    "iterative_relation_frozen",
+    "iterative_relation_finetune"
+  ],
+  "controls": [
+    "fixed",
+    "feature_only",
+    "reliability_only",
+    "combined",
+    "shuffled_reliability",
+    "constant_reliability",
+    "combined_shuffled",
+    "combined_constant"
+  ],
+  "runs": 3,
+  "edge_protocol": "undirected",
+  "data_root": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data",
+  "expert_cache_dir": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/outputs/iterative_relation_k1_screen/_expert_cache",
+  "backbone_cache_dir": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/outputs/iterative_relation_shared_backbone_cache",
+  "data_fingerprints": {
+    "Roman-empire": "6c90251bafa0f69081c84b9e964786d57aac3b7be62fa376f64393b6cb87e624",
+    "Amazon-ratings": "41ca1f5d24e0096fbef58b0a50293e29950dbf0663fc652318997c8cb1f51379",
+    "Cora": "b1b454ab1e4565619c24ee5251bb8a356262a72fbbc91d3875917dbfe4026068",
+    "Pubmed": "4795d40bde3d1d8757eeac0e3d66b3ec4c65ed4551bfa7cdbd84401a1e3417d9"
+  },
+  "normalize_features": true,
+  "rw_steps": 4,
+  "rw_samples": 128,
+  "rw_seed": 0,
+  "reliability_components": [
+    "degree",
+    "local_similarity",
+    "neighbor_variance",
+    "rwse"
+  ],
+  "hidden_dim": 64,
+  "num_layers": 2,
+  "num_heads": 4,
+  "dropout": 0.3,
+  "lr": 0.003,
+  "weight_decay": 0.0001,
+  "expert_epochs": 300,
+  "control_epochs": 200,
+  "patience": 60,
+  "fixed_alphas": [
+    0.0,
+    0.25,
+    0.5,
+    0.75,
+    1.0
+  ],
+  "max_adjustment": 0.1,
+  "lambda_init": 0.001,
+  "relation_steps": 1,
+  "device": "cuda"
+}

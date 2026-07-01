@@ -1,0 +1,50 @@
+{
+  "code_fingerprint": "bacb8c254a432825c43e353b2d869cb51a94ec0b1b418042c324641601a4e8ac",
+  "datasets": [
+    "Chameleon",
+    "Squirrel",
+    "Actor",
+    "Roman-empire",
+    "Amazon-ratings",
+    "Minesweeper"
+  ],
+  "routers": [
+    "reliability_only",
+    "node_feature_only",
+    "combined"
+  ],
+  "runs": 10,
+  "oof_folds": 5,
+  "edge_protocol": "undirected",
+  "data_root": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data",
+  "expert_cache_dir": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/outputs/preference_routing_full_v3/_expert_cache",
+  "preference_cache_dir": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/outputs/preference_routing_full_v3/_preference_cache",
+  "data_fingerprints": {
+    "Chameleon": "abec22f7a6e6818e16d1c945b3e711867850e016842f545f7a0b18cdff6376fd",
+    "Squirrel": "ac22b882828dbbd36263f4c827c77aa0795a6bd7f65b00c41b0e235875f7978d",
+    "Actor": "b9e1e067010d32c1abc894d5b53684da37fe0c3000d6c6089eb99475573861a0",
+    "Roman-empire": "6c90251bafa0f69081c84b9e964786d57aac3b7be62fa376f64393b6cb87e624",
+    "Amazon-ratings": "41ca1f5d24e0096fbef58b0a50293e29950dbf0663fc652318997c8cb1f51379",
+    "Minesweeper": "bc9ce8460d0bd5cf0eafdbd10bc072ab8fb6095b8903fed262cd5be2d3061fba"
+  },
+  "reliability_components": [
+    "degree",
+    "local_similarity",
+    "neighbor_variance",
+    "rwse"
+  ],
+  "normalize_features": true,
+  "rw_steps": 4,
+  "rw_samples": 128,
+  "rw_seed": 0,
+  "hidden_dim": 64,
+  "num_layers": 2,
+  "num_heads": 4,
+  "dropout": 0.3,
+  "lr": 0.003,
+  "weight_decay": 0.0001,
+  "expert_epochs": 500,
+  "router_epochs": 300,
+  "patience": 100,
+  "device": "cuda"
+}

@@ -1,0 +1,6 @@
+dataset,metric,value,std,accuracy,accuracy_std,roc_auc,roc_auc_std,f1,f1_std,epoch,source
+Roman-empire,accuracy,78.84,0.44,78.84,0.44,97.41,0.16,69.38,0.58,179,results\roman-empire-GPS\agg\test\best.json
+Roman-empire,accuracy,79.24,0.55,79.24,0.55,97.54,0.13,69.69,0.58,189,results_lappe\roman-empire-GPS\agg\test\best.json
+Roman-empire,accuracy,84.15,0.40,84.15,0.40,98.34,0.10,75.66,0.60,159,results_lappe_rwse_gatedgcn_performer\roman-empire-GPS\agg\test\best.json
+Questions,roc_auc,70.13,1.29,92.20,0.49,70.13,1.29,15.35,1.19,174,results_questions_nope_gatedgcn_performer\questions-GPS\agg\test\best.json
+Questions,roc_auc,73.41,1.19,97.11,0.05,73.41,1.19,11.94,1.65,189,results_questions_nope_gcn_performer\questions-GPS\agg\test\best.json

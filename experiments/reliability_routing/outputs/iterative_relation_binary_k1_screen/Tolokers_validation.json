@@ -1,0 +1,99 @@
+[
+  {
+    "dataset": "Tolokers",
+    "status": "valid",
+    "source": "PyG HeterophilousGraphDataset",
+    "source_url": "https://github.com/yandex-research/heterophilous-graphs",
+    "officially_undirected": true,
+    "primary_metric": "roc_auc",
+    "expected": {
+      "num_nodes": 11758,
+      "num_edges": 1038000,
+      "num_features": 10,
+      "num_classes": 2,
+      "num_splits": 10,
+      "source": "PyG HeterophilousGraphDataset",
+      "source_url": "https://github.com/yandex-research/heterophilous-graphs"
+    },
+    "actual": {
+      "num_nodes": 11758,
+      "num_edges": 1038000,
+      "num_features": 10,
+      "num_classes": 2,
+      "num_splits": 10
+    },
+    "splits": {
+      "count": 10,
+      "sizes": [
+        {
+          "split": 0,
+          "train": 5879,
+          "val": 2939,
+          "test": 2940
+        },
+        {
+          "split": 1,
+          "train": 5879,
+          "val": 2939,
+          "test": 2940
+        },
+        {
+          "split": 2,
+          "train": 5879,
+          "val": 2939,
+          "test": 2940
+        },
+        {
+          "split": 3,
+          "train": 5879,
+          "val": 2939,
+          "test": 2940
+        },
+        {
+          "split": 4,
+          "train": 5879,
+          "val": 2939,
+          "test": 2940
+        },
+        {
+          "split": 5,
+          "train": 5879,
+          "val": 2939,
+          "test": 2940
+        },
+        {
+          "split": 6,
+          "train": 5879,
+          "val": 2939,
+          "test": 2940
+        },
+        {
+          "split": 7,
+          "train": 5879,
+          "val": 2939,
+          "test": 2940
+        },
+        {
+          "split": 8,
+          "train": 5879,
+          "val": 2939,
+          "test": 2940
+        },
+        {
+          "split": 9,
+          "train": 5879,
+          "val": 2939,
+          "test": 2940
+        }
+      ]
+    },
+    "raw_files": [
+      {
+        "path": "/sdb/data_public/wanghan/Reliability-Aware/experiments/reliability_routing/data/tolokers/raw/tolokers.npz",
+        "size_bytes": 1329769,
+        "sha256": "dacf3ac94cec53d03cd2adb5255c08b33dee1656c33ca8164a464bd9450a1667"
+      }
+    ],
+    "errors": []
+  }
+]

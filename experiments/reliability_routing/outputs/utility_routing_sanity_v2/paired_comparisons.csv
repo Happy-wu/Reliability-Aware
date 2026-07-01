@@ -1,0 +1,25 @@
+dataset,comparison,metric,n,mean_delta,ci95_low,ci95_high,wins,ties,losses
+Cora,reliability_only - node_feature_only,test_preference_auc,1,0.06366951018161804,nan,nan,1,0,0
+Cora,reliability_only - node_feature_only,test_balanced_accuracy,1,0.08413593835993394,nan,nan,1,0,0
+Cora,reliability_only - node_feature_only,test_routing_accuracy,1,-0.4530386740331492,nan,nan,0,0,1
+Cora,combined - node_feature_only,test_preference_auc,1,0.0504265272427078,nan,nan,1,0,0
+Cora,combined - node_feature_only,test_balanced_accuracy,1,0.04182718767198684,nan,nan,1,0,0
+Cora,combined - node_feature_only,test_routing_accuracy,1,-0.494475138121547,nan,nan,0,0,1
+Chameleon,reliability_only - node_feature_only,test_preference_auc,1,0.1066666666666668,nan,nan,1,0,0
+Chameleon,reliability_only - node_feature_only,test_balanced_accuracy,1,0.07380952380952377,nan,nan,1,0,0
+Chameleon,reliability_only - node_feature_only,test_routing_accuracy,1,0.09142857142857136,nan,nan,1,0,0
+Chameleon,combined - node_feature_only,test_preference_auc,1,0.08707482993197269,nan,nan,1,0,0
+Chameleon,combined - node_feature_only,test_balanced_accuracy,1,0.03809523809523818,nan,nan,1,0,0
+Chameleon,combined - node_feature_only,test_routing_accuracy,1,0.03999999999999998,nan,nan,1,0,0
+Roman-empire,reliability_only - node_feature_only,test_preference_auc,1,-0.04637961029923443,nan,nan,0,0,1
+Roman-empire,reliability_only - node_feature_only,test_balanced_accuracy,1,-0.09612038970076553,nan,nan,0,0,1
+Roman-empire,reliability_only - node_feature_only,test_routing_accuracy,1,0.04741089441829194,nan,nan,1,0,0
+Roman-empire,combined - node_feature_only,test_preference_auc,1,0.035708072372999444,nan,nan,1,0,0
+Roman-empire,combined - node_feature_only,test_balanced_accuracy,1,0.0015796798886569263,nan,nan,1,0,0
+Roman-empire,combined - node_feature_only,test_routing_accuracy,1,0.0776731674512442,nan,nan,1,0,0
+Minesweeper,reliability_only - node_feature_only,test_preference_auc,0,nan,nan,nan,0,0,0
+Minesweeper,reliability_only - node_feature_only,test_balanced_accuracy,0,nan,nan,nan,0,0,0
+Minesweeper,reliability_only - node_feature_only,test_routing_accuracy,0,nan,nan,nan,0,0,0
+Minesweeper,combined - node_feature_only,test_preference_auc,0,nan,nan,nan,0,0,0
+Minesweeper,combined - node_feature_only,test_balanced_accuracy,0,nan,nan,nan,0,0,0
+Minesweeper,combined - node_feature_only,test_routing_accuracy,0,nan,nan,nan,0,0,0
