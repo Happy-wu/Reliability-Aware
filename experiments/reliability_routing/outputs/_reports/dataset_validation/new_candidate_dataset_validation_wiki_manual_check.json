@@ -1,0 +1,18 @@
+[
+  {
+    "dataset": "Wiki",
+    "status": "missing",
+    "source": "LINKX Non-Homophily-Large-Scale wiki",
+    "source_url": "https://github.com/CUAI/Non-Homophily-Large-Scale",
+    "primary_metric": "accuracy",
+    "raw_files": [],
+    "missing_files": [
+      "D:\\Desktop\\调研\\experiments\\reliability_routing\\data\\linkx\\wiki\\wiki_features2M.pt",
+      "D:\\Desktop\\调研\\experiments\\reliability_routing\\data\\linkx\\wiki\\wiki_edges2M.pt",
+      "D:\\Desktop\\调研\\experiments\\reliability_routing\\data\\linkx\\wiki\\wiki_views2M.pt"
+    ],
+    "errors": [
+      "LINKX Wiki tensors are unavailable in the current local mirror. Manually place wiki_features2M.pt, wiki_edges2M.pt, and wiki_views2M.pt under data/linkx/wiki if obtained from a valid mirror."
+    ]
+  }
+]

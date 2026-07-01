@@ -1,187 +1,158 @@
-# Experiment Outputs
+# Reliability Routing Outputs
 
-本目录保存 Reliability-Aware Graph Transformer 项目的实验结果。2026-06-19
-之前生成的结果已按实验目的归档，后续实验仍可直接写入 `outputs/`，不会覆盖
-归档内容。
+Last organized: 2026-07-01.
 
-## Directory Layout
+This directory stores experiment outputs for the reliability-routing project. The top level is intentionally kept shallow: active experiment folders stay in place, while loose validation reports and old exported summaries are collected under `_reports/`.
+
+## Top-Level Layout
 
 ```text
 outputs/
-├── README.md
-├── archive_manifest.csv
-└── archive/
-    └── 2026-06-19/
-        ├── 01_synthetic_baselines/
-        ├── 02_qk_diagnostics/
-        ├── 03_reliability_ablation/
-        ├── 04_real_data/
-        ├── 05_combined_analysis/
-        └── 99_legacy_single_runs/
+  README.md
+  README_INDEX.md
+  experiment_index.csv
+  archive_manifest.csv
+  _reports/
+    dataset_validation/
+    legacy_strength_sweep/
+  evidence_matrix/
+  archive/
+  <experiment-output-directories>/
 ```
 
-本次归档包含 29 个实验条目、108 个文件，约 0.78 MiB。归档过程只移动文件，
-没有删除或修改原始 CSV、JSON 和 Markdown 内容。
+## Current Main Evidence
 
-## Archive Categories
+### Roman-Empire
 
-### 01_synthetic_baselines
+The main positive result remains the component-concat iterative-relation controller on Roman-empire.
 
-Synthetic 数据上的基础模型比较和早期架构消融。
-
-- `batch_main/`: MLP、GCN、LinearGT、Reliability-GT 等主模型比较。
-- `batch_ablation_full/`: Q-only、K-only、QK、gate 和完整模型消融。
-- 每个实验目录中的 `raw_results.csv` 保存逐 seed 结果。
-- `summary.csv` 保存按 graph type 和 model 汇总的均值与标准差。
-
-### 02_qk_diagnostics
-
-用于判断 Q/K modulation 强度是否过弱，以及不同初始化或固定强度是否有效。
-
-- `batch_qk_init_m5/`, `batch_qk_init_m3/`, `batch_qk_init_m2/`:
-  learnable strength 初始化 sweep。
-- `batch_qk_fixed_002/`, `batch_qk_fixed_005/`, `batch_qk_fixed_010/`:
-  固定 Q/K strength 实验。
-- `batch_qk_residual_full/`, `batch_qk_residual_repeat/`:
-  residual modulation 版本及重复实验。
-- `batch_diagnostics_n10_full/`: 10 seeds 的 Q/K 与 gate 诊断。
-- `batch_qk_clean_reliability_full/`: 使用更干净 Q/K reliability 输入的实验。
-
-分析时优先查看各目录的 `summary.csv`，需要检查 seed 波动时再查看
-`raw_results.csv`。
-
-### 03_reliability_ablation
-
-Reliability component 和 learnable encoder 的完整消融结果。
-
-- `batch_reliability_encoder_compare/`: static reliability 与 encoded reliability
-  的直接比较。
-- `batch_rel_only_*`: 每次仅保留一个 reliability component。
-- `batch_rel_without_*`: 每次移除一个 reliability component。
-- `suite_config.json`: 对应实验的模型、组件、seed 和训练超参数。
-
-这一组实验统一使用 3 类 synthetic graph、10 seeds、900 个节点、hidden
-dimension 64、300 epochs 和 CUDA。
-
-### 04_real_data
-
-六个真实数据集的第一轮完整实验。
+Recommended reference folders:
 
 ```text
-real_suite/
-├── <Dataset>_<Model>.csv
-├── <Dataset>_validation.json
-├── dataset_validation.json
-├── suite_config.json
-├── summary.csv
-├── paired_comparisons.csv
-└── preliminary_analysis.md
+phaseC_rw8_dim32_confirm_r10/
+phaseB_alpha_channel_confirm_r10/
+evidence_matrix/
 ```
 
-数据集包括 Cora、Citeseer、Pubmed、Chameleon、Squirrel 和 Actor；模型包括
-MLP、custom GCN、LinearGT、QK-GT、Gate-GT 和 Reliability-GT，每组 10 runs。
+Best remembered configuration:
 
-注意：这是加入 `gcn_pyg`、`local_only_gt` 和经典 GCN protocol 之前生成的
-结果。因此它适合保留为第一轮真实数据基线，但不应替代后续的
-`real_gcn_diagnostic` 和 `real_gcn_classic` 实验。
-
-推荐阅读顺序：
-
-1. `real_suite/preliminary_analysis.md`
-2. `real_suite/summary.csv`
-3. `real_suite/paired_comparisons.csv`
-4. 单个 `<Dataset>_<Model>.csv`
-
-`real_dataset_validation.json` 是归档前位于 `outputs/` 根目录的数据校验报告；
-`real_suite/dataset_validation.json` 是真实数据 suite 内保存的同轮校验报告。
-
-### 05_combined_analysis
-
-跨 reliability encoder 和 component ablation 的综合分析。
-
-- `preliminary_analysis.md`: 当前最完整的文字分析。
-- `component_ablation_summary.csv`: component 消融汇总。
-- `encoder_paired_comparisons.csv`: encoded 与 static 版本的配对比较。
-- `suite_manifest.json`: 分析所依赖的实验清单。
-
-### 99_legacy_single_runs
-
-项目早期直接写入 `outputs/` 根目录的单次 synthetic CSV。它们缺少完整的
-suite 配置和统一汇总，仅用于追溯早期开发结果，不建议用于最终论文表格。
-
-## File Conventions
-
-- `raw_results.csv`: 每个 seed/run 的原始结果，是重新统计的主要数据源。
-- `summary.csv`: 按数据集或 graph type 汇总的均值和标准差。
-- `suite_config.json`: 实验参数和代码 fingerprint。
-- `dataset_validation.json`: 数据规模、特征、类别和 split 校验。
-- `paired_comparisons.csv`: 相同 split/seed 下的模型配对差值。
-- `preliminary_analysis.md`: 脚本自动生成的初步分析。
-
-完整归档索引见 `archive_manifest.csv`。其中记录了每个条目的分类、文件数量、
-大小、是否包含 raw results、summary 和 config，以及归档后的相对路径。
-
-## New Experiments
-
-当前主线已经切换到可恢复 GCN 的 logits-level expert fusion。主实验命令：
-
-```bash
-CUDA_VISIBLE_DEVICES=0 python run_expert_fusion_suite.py \
-  --datasets Cora Citeseer Pubmed Chameleon Squirrel Actor \
-  --models gcn_pyg global_only ordinary_gate reliability_gate \
-  --fixed-alphas 0 0.25 0.5 0.75 1.0 \
-  --edge-protocol undirected \
-  --runs 10 \
-  --data-root data \
-  --out-dir outputs/expert_fusion_undirected \
-  --no-download \
-  --device cuda
+```text
+reliability_encoder_mode = component_concat
+reliability_component_dim = 32
+component_missing_mode = zero_slot
+rw_steps = 8
+alpha_type = channel
+relation_steps = 1
 ```
 
-该实验先独立训练 LocalExpert 和 GlobalExpert，再冻结 expert 训练 gate。
-`fixed_alpha_100` 必须与 `gcn_pyg` 完全恢复，ordinary gate 与 reliability
-gate 使用相同参数结构。
+### Arxiv-Year
 
-一次性验证 fallback、gate、reliability、互补性、edge protocol 和 reliability
-components：
+Arxiv-year is now the strongest second mechanism-positive candidate.
 
-```bash
-CUDA_VISIBLE_DEVICES=0 python run_expert_validation_matrix.py \
-  --profile sanity \
-  --include-directed \
-  --include-components \
-  --data-root data \
-  --out-dir outputs/expert_validation_sanity \
-  --no-download \
-  --device cuda
+Primary confirmation folders:
+
+```text
+arxiv_year_directed_component_concat_confirm_r10/
+arxiv_year_undirected_component_concat_confirm_r10/
 ```
 
-新的真实数据诊断实验建议写入独立目录：
+Directed/source-to-target is stronger and should be treated as the main Arxiv-year result:
 
-```bash
-CUDA_VISIBLE_DEVICES=0 python run_real_suite.py \
-  --datasets Cora Citeseer Pubmed Chameleon Squirrel Actor \
-  --models gcn gcn_pyg local_only_gt gate_gt reliability_gt \
-  --runs 10 \
-  --data-root data \
-  --out-dir outputs/real_gcn_diagnostic \
-  --no-download \
-  --device cuda
+```text
+finetune fixed            43.07%
+finetune reliability_only 47.47%
+finetune combined         47.49%
 ```
 
-经典 GCN 复现实验：
+Key directed 10-run deltas:
 
-```bash
-CUDA_VISIBLE_DEVICES=0 python run_real_suite.py \
-  --datasets Cora Citeseer Pubmed \
-  --models gcn_pyg \
-  --training-profile classic_gcn \
-  --runs 10 \
-  --data-root data \
-  --out-dir outputs/real_gcn_classic \
-  --no-download \
-  --device cuda
+```text
+reliability_only - fixed       +4.40 pp
+reliability_only - shuffled    +4.26 pp
+reliability_only - constant    +4.25 pp
+combined - fixed               +4.42 pp
+combined - combined_shuffled   +4.37 pp
+combined - combined_constant   +4.28 pp
 ```
 
-不要将新的结果直接写入 `outputs/archive/`。完成一轮实验并确认结果完整后，
-再按日期建立新的归档批次。
+Undirected is also positive but weaker:
+
+```text
+finetune fixed            45.39%
+finetune reliability_only 46.69%
+finetune combined         46.76%
+```
+
+Interpretation: Arxiv-year is a mechanism-positive dataset, not yet a strong absolute-performance result against LINKX or a tuned GraphGPS-style baseline.
+
+### PascalVOC-SP
+
+The current PascalVOC-SP run is incomplete:
+
+```text
+lrgb_pascalvocsp_screen_v3/
+```
+
+It contains only seed 0 for all controls plus seed 1 for `fixed`. Do not use it as a formal comparison. The partial seed-0 signal is not favorable to reliability, so this branch should not consume more compute until the runner/protocol is revisited.
+
+## New Candidate Data
+
+Validation reports were moved to:
+
+```text
+_reports/dataset_validation/
+```
+
+Current validated candidates:
+
+```text
+Genius
+Arxiv-year
+WikiCS
+```
+
+LINKX Wiki is not downloaded. The expected manual file location is:
+
+```text
+data/linkx/wiki/wiki_features2M.pt
+data/linkx/wiki/wiki_edges2M.pt
+data/linkx/wiki/wiki_views2M.pt
+```
+
+## Report Folders
+
+`_reports/dataset_validation/` contains one-off validation JSON files, including new-candidate checks and LRGB staging checks.
+
+`_reports/legacy_strength_sweep/` contains the older representation-control strength sweep exports that were previously loose in the top-level `outputs/` directory.
+
+## Historical Archive
+
+Older early-stage outputs are kept under:
+
+```text
+archive/
+archive_manifest.csv
+```
+
+The archive is retained for provenance only. Current conclusions should come from the phase folders, Arxiv-year confirmation folders, and `evidence_matrix/`.
+
+## Reading Order
+
+1. `evidence_matrix/`
+2. `phaseC_rw8_dim32_confirm_r10/`
+3. `arxiv_year_directed_component_concat_confirm_r10/`
+4. `arxiv_year_undirected_component_concat_confirm_r10/`
+5. `unified_diagnostics_v1/`
+6. `webkb_best_config_screen/`
+7. `lrgb_pascalvocsp_screen_v3/` only as an incomplete smoke result
+
+## Caution
+
+Do not compare Arxiv-year accuracy directly with OGB `ogbn-arxiv` results. They are different tasks:
+
+```text
+ogbn-arxiv: subject classification
+Arxiv-year: year-bin classification
+```
+
+For Arxiv-year, the current result is best used to support reliability-specific controlled gains rather than SOTA-level absolute accuracy.

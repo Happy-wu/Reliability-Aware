@@ -1,0 +1,74 @@
+[
+  {
+    "dataset": "Genius",
+    "status": "valid",
+    "source": "LINKX Non-Homophily-Large-Scale",
+    "source_url": "https://github.com/CUAI/Non-Homophily-Large-Scale",
+    "officially_undirected": false,
+    "primary_metric": "roc_auc",
+    "expected": {
+      "num_nodes": 421961,
+      "num_edges": 984979,
+      "num_features": 12,
+      "num_classes": 2,
+      "num_splits": 5,
+      "source": "LINKX Non-Homophily-Large-Scale",
+      "source_url": "https://github.com/CUAI/Non-Homophily-Large-Scale"
+    },
+    "actual": {
+      "num_nodes": 421961,
+      "num_edges": 984979,
+      "num_features": 12,
+      "num_classes": 2,
+      "num_splits": 5
+    },
+    "splits": {
+      "count": 5,
+      "sizes": [
+        {
+          "split": 0,
+          "train": 210980,
+          "val": 105490,
+          "test": 105491
+        },
+        {
+          "split": 1,
+          "train": 210980,
+          "val": 105490,
+          "test": 105491
+        },
+        {
+          "split": 2,
+          "train": 210980,
+          "val": 105490,
+          "test": 105491
+        },
+        {
+          "split": 3,
+          "train": 210980,
+          "val": 105490,
+          "test": 105491
+        },
+        {
+          "split": 4,
+          "train": 210980,
+          "val": 105490,
+          "test": 105491
+        }
+      ]
+    },
+    "raw_files": [
+      {
+        "path": "D:\\Desktop\\调研\\experiments\\reliability_routing\\data\\new_candidates\\Non-Homophily-Large-Scale\\data\\genius.mat",
+        "size_bytes": 39389896,
+        "sha256": "d52b8344300945d574b9bb948f221578deac31ac2194122e461b1ab07e4e1ac0"
+      },
+      {
+        "path": "D:\\Desktop\\调研\\experiments\\reliability_routing\\data\\new_candidates\\Non-Homophily-Large-Scale\\data\\splits\\genius-splits.npy",
+        "size_bytes": 9897026,
+        "sha256": "602cd9412352b80bf16c861535634b6c09ac33404e64450165d35f9bacdfb96d"
+      }
+    ],
+    "errors": []
+  }
+]

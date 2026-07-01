@@ -1,0 +1,159 @@
+[
+  {
+    "dataset": "WikiCS",
+    "status": "valid",
+    "source": "Wiki-CS dataset data.json directed links",
+    "source_url": "https://github.com/pmernyei/wiki-cs-dataset",
+    "officially_undirected": false,
+    "primary_metric": "accuracy",
+    "expected": {
+      "num_nodes": 11701,
+      "num_edges": 297110,
+      "num_features": 300,
+      "num_classes": 10,
+      "num_splits": 20,
+      "source": "Wiki-CS dataset data.json directed links",
+      "source_url": "https://github.com/pmernyei/wiki-cs-dataset"
+    },
+    "actual": {
+      "num_nodes": 11701,
+      "num_edges": 297110,
+      "num_features": 300,
+      "num_classes": 10,
+      "num_splits": 20
+    },
+    "splits": {
+      "count": 20,
+      "sizes": [
+        {
+          "split": 0,
+          "train": 580,
+          "val": 1769,
+          "test": 5847
+        },
+        {
+          "split": 1,
+          "train": 580,
+          "val": 1769,
+          "test": 5847
+        },
+        {
+          "split": 2,
+          "train": 580,
+          "val": 1769,
+          "test": 5847
+        },
+        {
+          "split": 3,
+          "train": 580,
+          "val": 1769,
+          "test": 5847
+        },
+        {
+          "split": 4,
+          "train": 580,
+          "val": 1769,
+          "test": 5847
+        },
+        {
+          "split": 5,
+          "train": 580,
+          "val": 1769,
+          "test": 5847
+        },
+        {
+          "split": 6,
+          "train": 580,
+          "val": 1769,
+          "test": 5847
+        },
+        {
+          "split": 7,
+          "train": 580,
+          "val": 1769,
+          "test": 5847
+        },
+        {
+          "split": 8,
+          "train": 580,
+          "val": 1769,
+          "test": 5847
+        },
+        {
+          "split": 9,
+          "train": 580,
+          "val": 1769,
+          "test": 5847
+        },
+        {
+          "split": 10,
+          "train": 580,
+          "val": 1769,
+          "test": 5847
+        },
+        {
+          "split": 11,
+          "train": 580,
+          "val": 1769,
+          "test": 5847
+        },
+        {
+          "split": 12,
+          "train": 580,
+          "val": 1769,
+          "test": 5847
+        },
+        {
+          "split": 13,
+          "train": 580,
+          "val": 1769,
+          "test": 5847
+        },
+        {
+          "split": 14,
+          "train": 580,
+          "val": 1769,
+          "test": 5847
+        },
+        {
+          "split": 15,
+          "train": 580,
+          "val": 1769,
+          "test": 5847
+        },
+        {
+          "split": 16,
+          "train": 580,
+          "val": 1769,
+          "test": 5847
+        },
+        {
+          "split": 17,
+          "train": 580,
+          "val": 1769,
+          "test": 5847
+        },
+        {
+          "split": 18,
+          "train": 580,
+          "val": 1769,
+          "test": 5847
+        },
+        {
+          "split": 19,
+          "train": 580,
+          "val": 1769,
+          "test": 5847
+        }
+      ]
+    },
+    "raw_files": [
+      {
+        "path": "D:\\Desktop\\调研\\experiments\\reliability_routing\\data\\wikics\\raw\\data.json",
+        "size_bytes": 82533647,
+        "sha256": "9bf8cb3ef8eeae81b25e6ccbe0ea195600c205d7edf63ce04f2ec8d9c7dcb3d8"
+      }
+    ],
+    "errors": []
+  }
+]
