@@ -19,29 +19,39 @@ EXPERT_MODELS = (
 
 
 class LocalExpert(nn.Module):
-    """Two-layer PyG GCN for one fixed graph and edge protocol per instance."""
+    """PyG GCN for one fixed graph and edge protocol per instance."""
 
     def __init__(
         self,
         in_dim: int,
         hidden_dim: int,
         out_dim: int,
+        num_layers: int,
         dropout: float,
     ):
         super().__init__()
+        if num_layers < 1:
+            raise ValueError("LocalExpert num_layers must be at least 1")
         try:
             from torch_geometric.nn import GCNConv
         except ImportError as exc:
             raise RuntimeError("LocalExpert requires torch-geometric") from exc
-        self.conv1 = GCNConv(in_dim, hidden_dim, cached=True, normalize=True)
-        self.conv2 = GCNConv(hidden_dim, out_dim, cached=True, normalize=True)
+        dims = [in_dim] + [hidden_dim] * max(0, num_layers - 1) + [out_dim]
+        self.convs = nn.ModuleList(
+            [
+                GCNConv(dims[index], dims[index + 1], cached=True, normalize=True)
+                for index in range(num_layers)
+            ]
+        )
         self.dropout = dropout
 
     def forward(self, x: torch.Tensor, edge_index: torch.Tensor) -> torch.Tensor:
-        x = F.dropout(x, p=self.dropout, training=self.training)
-        x = F.relu(self.conv1(x, edge_index))
-        x = F.dropout(x, p=self.dropout, training=self.training)
-        return self.conv2(x, edge_index)
+        for index, conv in enumerate(self.convs):
+            x = conv(x, edge_index)
+            if index != len(self.convs) - 1:
+                x = F.relu(x)
+                x = F.dropout(x, p=self.dropout, training=self.training)
+        return x
 
 
 class GlobalExpertLayer(nn.Module):
@@ -172,7 +182,13 @@ class ExpertFusionModel(nn.Module):
         self.fixed_alpha = fixed_alpha
         # LocalExpert is deliberately constructed first. With the same seed,
         # gcn_pyg and all fusion variants start from identical local weights.
-        self.local_expert = LocalExpert(in_dim, hidden_dim, out_dim, dropout)
+        self.local_expert = LocalExpert(
+            in_dim,
+            hidden_dim,
+            out_dim,
+            num_layers,
+            dropout,
+        )
         self.global_expert = (
             None
             if mode == "gcn_pyg"

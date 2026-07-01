@@ -4,6 +4,7 @@ import hashlib
 import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import torch
@@ -18,10 +19,15 @@ HETERO_UNDIRECTED_DATASETS = (
     "Tolokers",
     "Questions",
 )
+WEBKB_DATASETS = ("Texas", "Cornell", "Wisconsin")
+OGB_ORIGINAL_DATASETS = ("OGBN-Arxiv",)
+LINKX_CANDIDATE_DATASETS = ("Genius", "Arxiv-year", "Wiki")
+WIKICS_DATASETS = ("WikiCS",)
 ROC_AUC_DATASETS = (
     "Minesweeper",
     "Tolokers",
     "Questions",
+    "Genius",
 )
 REAL_DATASETS = (
     "Cora",
@@ -30,7 +36,11 @@ REAL_DATASETS = (
     "Chameleon",
     "Squirrel",
     "Actor",
+    *WEBKB_DATASETS,
     *HETERO_UNDIRECTED_DATASETS,
+    *OGB_ORIGINAL_DATASETS,
+    *LINKX_CANDIDATE_DATASETS,
+    *WIKICS_DATASETS,
 )
 EDGE_PROTOCOLS = ("undirected", "source_to_target", "target_to_source")
 
@@ -59,6 +69,9 @@ EXPECTED_DATASETS = {
     "Chameleon": DatasetExpectation(2277, 36101, 2325, 5, 10, "PyG WikipediaNetwork Geom-GCN", "https://github.com/graphdml-uiuc-jlu/geom-gcn"),
     "Squirrel": DatasetExpectation(5201, 217073, 2089, 5, 10, "PyG WikipediaNetwork Geom-GCN", "https://github.com/graphdml-uiuc-jlu/geom-gcn"),
     "Actor": DatasetExpectation(7600, 30019, 932, 5, 10, "PyG Actor/Geom-GCN", "https://github.com/graphdml-uiuc-jlu/geom-gcn"),
+    "Texas": DatasetExpectation(183, 325, 1703, 5, 10, "PyG WebKB/Geom-GCN", "https://github.com/graphdml-uiuc-jlu/geom-gcn"),
+    "Cornell": DatasetExpectation(183, 298, 1703, 5, 10, "PyG WebKB/Geom-GCN", "https://github.com/graphdml-uiuc-jlu/geom-gcn"),
+    "Wisconsin": DatasetExpectation(251, 515, 1703, 5, 10, "PyG WebKB/Geom-GCN", "https://github.com/graphdml-uiuc-jlu/geom-gcn"),
     # PyG stores both directions after processing these originally undirected
     # edge lists, so the expected edge counts are twice the paper's counts.
     "Roman-empire": DatasetExpectation(22662, 65854, 300, 18, 10, "PyG HeterophilousGraphDataset", "https://github.com/yandex-research/heterophilous-graphs"),
@@ -66,7 +79,29 @@ EXPECTED_DATASETS = {
     "Minesweeper": DatasetExpectation(10000, 78804, 7, 2, 10, "PyG HeterophilousGraphDataset", "https://github.com/yandex-research/heterophilous-graphs"),
     "Tolokers": DatasetExpectation(11758, 1038000, 10, 2, 10, "PyG HeterophilousGraphDataset", "https://github.com/yandex-research/heterophilous-graphs"),
     "Questions": DatasetExpectation(48921, 307080, 301, 2, 10, "PyG HeterophilousGraphDataset", "https://github.com/yandex-research/heterophilous-graphs"),
+    "OGBN-Arxiv": DatasetExpectation(169343, 1166243, 128, 40, 1, "OGB ogbn-arxiv original subject classification", "https://ogb.stanford.edu/docs/nodeprop/#ogbn-arxiv"),
+    "Genius": DatasetExpectation(421961, 984979, 12, 2, 5, "LINKX Non-Homophily-Large-Scale", "https://github.com/CUAI/Non-Homophily-Large-Scale"),
+    "Arxiv-year": DatasetExpectation(169343, 1166243, 128, 5, 5, "LINKX / OGB ogbn-arxiv year labels", "https://github.com/CUAI/Non-Homophily-Large-Scale"),
+    "WikiCS": DatasetExpectation(11701, 297110, 300, 10, 20, "Wiki-CS dataset data.json directed links", "https://github.com/pmernyei/wiki-cs-dataset"),
+    # LINKX wiki is a very large candidate. The exact tensor shapes are
+    # validated after downloading because the official files are stored as
+    # external Google Drive tensors and no fixed split file is provided.
+    "Wiki": DatasetExpectation(0, 0, 0, 0, 5, "LINKX Non-Homophily-Large-Scale wiki", "https://github.com/CUAI/Non-Homophily-Large-Scale"),
 }
+
+
+class CandidateDataset:
+    def __init__(self, data: object, raw_paths: list[Path]):
+        self.data = data
+        self.raw_paths = [str(path) for path in raw_paths]
+
+    def __len__(self) -> int:
+        return 1
+
+    def __getitem__(self, index: int) -> object:
+        if index != 0:
+            raise IndexError(index)
+        return self.data
 
 
 def require_pyg() -> None:
@@ -84,7 +119,6 @@ def load_and_validate_dataset(
     root: Path,
     allow_download: bool = True,
 ) -> tuple[object, dict[str, object]]:
-    require_pyg()
     if name not in REAL_DATASETS:
         raise ValueError(f"Unknown real dataset: {name}")
 
@@ -95,10 +129,23 @@ def load_and_validate_dataset(
 
 
 def load_pyg_dataset(name: str, root: Path, allow_download: bool) -> object:
+    if name == "Genius":
+        return load_genius_candidate(root, allow_download)
+    if name == "OGBN-Arxiv":
+        return load_ogbn_arxiv_original(root, allow_download)
+    if name == "Arxiv-year":
+        return load_arxiv_year_candidate(root, allow_download)
+    if name == "WikiCS":
+        return load_wikics_candidate(root, allow_download)
+    if name == "Wiki":
+        return load_linkx_wiki_candidate(root, allow_download)
+
+    require_pyg()
     from torch_geometric.datasets import (
         Actor,
         HeterophilousGraphDataset,
         Planetoid,
+        WebKB,
         WikipediaNetwork,
     )
 
@@ -118,6 +165,8 @@ def load_pyg_dataset(name: str, root: Path, allow_download: bool) -> object:
         )
     if name == "Actor":
         return Actor(root=str(root / "Actor"))
+    if name in WEBKB_DATASETS:
+        return WebKB(root=str(root), name=name)
     return HeterophilousGraphDataset(root=str(root), name=name)
 
 
@@ -141,11 +190,31 @@ def dataset_has_local_files(name: str, root: Path) -> bool:
         "Chameleon": ("chameleon", "Chameleon"),
         "Squirrel": ("squirrel", "Squirrel"),
         "Actor": ("Actor",),
+        "Texas": ("texas", "Texas"),
+        "Cornell": ("cornell", "Cornell"),
+        "Wisconsin": ("wisconsin", "Wisconsin"),
         "Roman-empire": ("roman_empire", "Roman-empire"),
         "Amazon-ratings": ("amazon_ratings", "Amazon-ratings"),
         "Minesweeper": ("minesweeper", "Minesweeper"),
         "Tolokers": ("tolokers", "Tolokers"),
         "Questions": ("questions", "Questions"),
+        "OGBN-Arxiv": ("ogb/ogbn_arxiv",),
+        "Genius": (
+            "linkx/genius",
+            "new_candidates/Non-Homophily-Large-Scale/data",
+            "Non-Homophily-Large-Scale/data",
+        ),
+        "Arxiv-year": (
+            "ogb/ogbn_arxiv",
+            "linkx/arxiv-year",
+            "new_candidates/Non-Homophily-Large-Scale/data/splits",
+        ),
+        "WikiCS": ("wikics", "wiki_cs", "WikiCS"),
+        "Wiki": (
+            "linkx/wiki",
+            "new_candidates/Non-Homophily-Large-Scale/data",
+            "Non-Homophily-Large-Scale/data",
+        ),
     }
     for candidate in aliases[name]:
         dataset_root = root / candidate
@@ -176,6 +245,8 @@ def validate_pyg_data(name: str, dataset: object, data: object) -> dict[str, obj
     }
     for field in ("num_nodes", "num_edges", "num_features", "num_classes", "num_splits"):
         expected_value = getattr(expected, field)
+        if name == "Wiki" and expected_value == 0:
+            continue
         if actual[field] != expected_value:
             errors.append(f"{field}: expected {expected_value}, got {actual[field]}")
 
@@ -198,7 +269,7 @@ def validate_pyg_data(name: str, dataset: object, data: object) -> dict[str, obj
             errors.append("Official undirected dataset is not stored bidirectionally")
 
     labels = torch.unique(data.y).cpu()
-    if not torch.equal(labels, torch.arange(expected.num_classes)):
+    if expected.num_classes and not torch.equal(labels, torch.arange(expected.num_classes)):
         errors.append(f"Labels are not contiguous 0..{expected.num_classes - 1}")
 
     split_report = validate_masks(data, expected.num_splits)
@@ -226,6 +297,353 @@ def validate_pyg_data(name: str, dataset: object, data: object) -> dict[str, obj
             f"{name} failed dataset validation:\n- " + "\n- ".join(errors)
         )
     return report
+
+
+def candidate_repo_root(root: Path) -> Path:
+    candidates = (
+        root / "new_candidates" / "Non-Homophily-Large-Scale",
+        root / "Non-Homophily-Large-Scale",
+    )
+    for candidate in candidates:
+        if candidate.is_dir():
+            return candidate
+    return candidates[0]
+
+
+def load_genius_candidate(root: Path, allow_download: bool) -> CandidateDataset:
+    repo = candidate_repo_root(root)
+    mat_path = first_existing_path(
+        root / "linkx" / "genius" / "genius.mat",
+        repo / "data" / "genius.mat",
+    )
+    splits_path = first_existing_path(
+        root / "linkx" / "genius" / "genius-splits.npy",
+        repo / "data" / "splits" / "genius-splits.npy",
+    )
+    ensure_files("Genius", (mat_path, splits_path), allow_download)
+
+    try:
+        import scipy.io
+    except ImportError as exc:
+        raise RuntimeError("Genius loader requires scipy") from exc
+
+    matrix = scipy.io.loadmat(mat_path)
+    x = torch.as_tensor(matrix["node_feat"], dtype=torch.float32)
+    y = torch.as_tensor(matrix["label"], dtype=torch.long).view(-1)
+    edge_index = torch.as_tensor(matrix["edge_index"], dtype=torch.long)
+    train_mask, val_mask, test_mask = load_npy_splits(splits_path, y.numel())
+    data = SimpleNamespace(
+        x=x,
+        y=y,
+        edge_index=edge_index,
+        train_mask=train_mask,
+        val_mask=val_mask,
+        test_mask=test_mask,
+        num_nodes=int(y.numel()),
+    )
+    return CandidateDataset(data, [mat_path, splits_path])
+
+
+def load_arxiv_year_candidate(root: Path, allow_download: bool) -> CandidateDataset:
+    repo = candidate_repo_root(root)
+    splits_path = first_existing_path(
+        root / "linkx" / "arxiv-year" / "arxiv-year-splits.npy",
+        repo / "data" / "splits" / "arxiv-year-splits.npy",
+    )
+    if not splits_path.is_file():
+        raise FileNotFoundError(
+            f"Arxiv-year split file is missing: {splits_path}. "
+            "Place CUAI/Non-Homophily-Large-Scale under data/new_candidates."
+        )
+
+    ogb_root = root / "ogb"
+    if not allow_download and not (ogb_root / "ogbn_arxiv").exists():
+        raise FileNotFoundError(
+            f"ogbn-arxiv is not present under {ogb_root}. Re-run without --no-download."
+        )
+    try:
+        from ogb.nodeproppred import NodePropPredDataset
+    except ImportError as exc:
+        raise RuntimeError("Arxiv-year loader requires ogb") from exc
+
+    dataset = load_ogb_node_dataset_compat("ogbn-arxiv", ogb_root)
+    graph, _ = dataset[0]
+    x = torch.as_tensor(graph["node_feat"], dtype=torch.float32)
+    edge_index = torch.as_tensor(graph["edge_index"], dtype=torch.long)
+    years = np.asarray(graph["node_year"]).reshape(-1)
+    y = torch.as_tensor(even_quantile_labels(years, 5), dtype=torch.long)
+    train_mask, val_mask, test_mask = load_npy_splits(splits_path, y.numel())
+    raw_paths = [splits_path]
+    raw_paths.extend(path for path in (ogb_root / "ogbn_arxiv").rglob("*") if path.is_file())
+    data = SimpleNamespace(
+        x=x,
+        y=y,
+        edge_index=edge_index,
+        train_mask=train_mask,
+        val_mask=val_mask,
+        test_mask=test_mask,
+        num_nodes=int(y.numel()),
+    )
+    return CandidateDataset(data, raw_paths[:64])
+
+
+def load_ogbn_arxiv_original(root: Path, allow_download: bool) -> CandidateDataset:
+    ogb_root = root / "ogb"
+    if not allow_download and not (ogb_root / "ogbn_arxiv").exists():
+        raise FileNotFoundError(
+            f"ogbn-arxiv is not present under {ogb_root}. Re-run without --no-download."
+        )
+    try:
+        import ogb  # noqa: F401
+    except ImportError as exc:
+        raise RuntimeError("OGBN-Arxiv loader requires ogb") from exc
+
+    dataset = load_ogb_node_dataset_compat("ogbn-arxiv", ogb_root)
+    graph, labels = dataset[0]
+    split_idx = dataset.get_idx_split()
+    x = torch.as_tensor(graph["node_feat"], dtype=torch.float32)
+    edge_index = torch.as_tensor(graph["edge_index"], dtype=torch.long)
+    y = torch.as_tensor(labels, dtype=torch.long).view(-1)
+    train_mask = index_mask(split_idx["train"], y.numel())
+    val_mask = index_mask(split_idx["valid"], y.numel())
+    test_mask = index_mask(split_idx["test"], y.numel())
+    raw_paths = [path for path in (ogb_root / "ogbn_arxiv").rglob("*") if path.is_file()]
+    data = SimpleNamespace(
+        x=x,
+        y=y,
+        edge_index=edge_index,
+        train_mask=train_mask,
+        val_mask=val_mask,
+        test_mask=test_mask,
+        num_nodes=int(y.numel()),
+    )
+    return CandidateDataset(data, raw_paths[:64])
+
+
+def load_ogb_node_dataset_compat(name: str, root: Path) -> object:
+    from ogb.nodeproppred import NodePropPredDataset
+
+    original_load = torch.load
+
+    def compatible_load(*args, **kwargs):
+        kwargs.setdefault("weights_only", False)
+        return original_load(*args, **kwargs)
+
+    torch.load = compatible_load
+    try:
+        return NodePropPredDataset(name=name, root=str(root))
+    finally:
+        torch.load = original_load
+
+
+def load_wikics_candidate(root: Path, allow_download: bool) -> CandidateDataset:
+    raw_path = wikics_raw_path(root)
+    if not raw_path.is_file():
+        if allow_download:
+            download_wikics(raw_path)
+        else:
+            raise FileNotFoundError(
+                f"WikiCS is not present under {root}. Re-run without --no-download."
+            )
+
+    payload = json.loads(raw_path.read_text(encoding="utf-8"))
+    x = torch.as_tensor(payload["features"], dtype=torch.float32)
+    y = torch.as_tensor(payload["labels"], dtype=torch.long)
+    edge_index = wikics_edge_index(payload["links"])
+    train_mask = bool_mask_matrix(payload["train_masks"], x.size(0))
+    val_key = "val_masks" if "val_masks" in payload else "stopping_masks"
+    val_mask = bool_mask_matrix(payload[val_key], x.size(0))
+    test_mask = bool_mask_matrix(payload["test_mask"], x.size(0), repeat=train_mask.size(1))
+    data = SimpleNamespace(
+        x=x,
+        y=y,
+        edge_index=edge_index,
+        train_mask=train_mask,
+        val_mask=val_mask,
+        test_mask=test_mask,
+        num_nodes=int(y.numel()),
+    )
+    return CandidateDataset(data, [raw_path])
+
+
+def load_linkx_wiki_candidate(root: Path, allow_download: bool) -> CandidateDataset:
+    repo = candidate_repo_root(root)
+    data_dir = root / "linkx" / "wiki"
+    fallback_data_dir = repo / "data"
+    paths = {
+        "features": first_existing_path(
+            data_dir / "wiki_features2M.pt",
+            fallback_data_dir / "wiki_features2M.pt",
+        ),
+        "edges": first_existing_path(
+            data_dir / "wiki_edges2M.pt",
+            fallback_data_dir / "wiki_edges2M.pt",
+        ),
+        "labels": first_existing_path(
+            data_dir / "wiki_views2M.pt",
+            fallback_data_dir / "wiki_views2M.pt",
+        ),
+    }
+    if not all(path.is_file() for path in paths.values()):
+        if allow_download:
+            raise FileNotFoundError(
+                "LINKX Wiki is very large. Download it explicitly with "
+                "prepare_new_candidate_datasets.py --datasets Wiki --download-large."
+            )
+        raise FileNotFoundError(
+            f"LINKX Wiki files are missing under {data_dir}. "
+            "Run prepare_new_candidate_datasets.py with --download-large."
+        )
+    x = torch.load(paths["features"], map_location="cpu", weights_only=False).float()
+    edges = torch.load(paths["edges"], map_location="cpu", weights_only=False).long()
+    edge_index = edges.t().contiguous() if edges.dim() == 2 and edges.size(1) == 2 else edges
+    y_raw = torch.load(paths["labels"], map_location="cpu", weights_only=False)
+    y = torch.as_tensor(y_raw, dtype=torch.long).view(-1)
+    if torch.unique(y).numel() > 100:
+        y = torch.as_tensor(even_quantile_labels(y.cpu().numpy(), 5), dtype=torch.long)
+    train_mask, val_mask, test_mask = deterministic_stratified_masks(y, splits=5)
+    data = SimpleNamespace(
+        x=x,
+        y=y,
+        edge_index=edge_index,
+        train_mask=train_mask,
+        val_mask=val_mask,
+        test_mask=test_mask,
+        num_nodes=int(y.numel()),
+    )
+    return CandidateDataset(data, list(paths.values()))
+
+
+def first_existing_path(*paths: Path) -> Path:
+    for path in paths:
+        if path.is_file():
+            return path
+    return paths[0]
+
+
+def ensure_files(name: str, paths: tuple[Path, ...], allow_download: bool) -> None:
+    missing = [path for path in paths if not path.is_file()]
+    if not missing:
+        return
+    suffix = " Download is not automatic for this local-candidate file." if allow_download else ""
+    raise FileNotFoundError(
+        f"{name} is missing required files:\n- "
+        + "\n- ".join(str(path) for path in missing)
+        + suffix
+    )
+
+
+def load_npy_splits(path: Path, num_nodes: int) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    splits = np.load(path, allow_pickle=True)
+    train_masks = []
+    val_masks = []
+    test_masks = []
+    for item in splits:
+        split = item.item() if hasattr(item, "item") else item
+        train_masks.append(index_mask(split["train"], num_nodes))
+        val_masks.append(index_mask(split.get("valid", split.get("val")), num_nodes))
+        test_masks.append(index_mask(split["test"], num_nodes))
+    return (
+        torch.stack(train_masks, dim=1),
+        torch.stack(val_masks, dim=1),
+        torch.stack(test_masks, dim=1),
+    )
+
+
+def index_mask(indices: object, num_nodes: int) -> torch.Tensor:
+    mask = torch.zeros(num_nodes, dtype=torch.bool)
+    idx = torch.as_tensor(indices, dtype=torch.long).view(-1)
+    if idx.numel():
+        mask[idx] = True
+    return mask
+
+
+def even_quantile_labels(values: np.ndarray, nclass: int) -> np.ndarray:
+    values = np.asarray(values).reshape(-1)
+    boundaries = np.percentile(values, np.linspace(0, 100, nclass + 1)[1:-1])
+    labels = np.zeros(values.shape[0], dtype=np.int64)
+    for boundary in boundaries:
+        labels += values > boundary
+    return labels
+
+
+def wikics_raw_path(root: Path) -> Path:
+    for candidate in (root / "wikics" / "raw" / "data.json", root / "wiki_cs" / "raw" / "data.json"):
+        if candidate.is_file():
+            return candidate
+    return root / "wikics" / "raw" / "data.json"
+
+
+def download_wikics(raw_path: Path) -> None:
+    import urllib.request
+
+    raw_path.parent.mkdir(parents=True, exist_ok=True)
+    url = "https://raw.githubusercontent.com/pmernyei/wiki-cs-dataset/master/dataset/data.json"
+    urllib.request.urlretrieve(url, raw_path)
+
+
+def wikics_edge_index(links: object) -> torch.Tensor:
+    sources = []
+    targets = []
+    if isinstance(links, dict):
+        iterator = links.items()
+    else:
+        iterator = enumerate(links)
+    for source, neighbors in iterator:
+        source_int = int(source)
+        for target in neighbors:
+            sources.append(source_int)
+            targets.append(int(target))
+    return torch.tensor([sources, targets], dtype=torch.long)
+
+
+def bool_mask_matrix(values: object, num_nodes: int, repeat: int | None = None) -> torch.Tensor:
+    tensor = torch.as_tensor(values, dtype=torch.bool)
+    if tensor.dim() == 1:
+        if tensor.numel() != num_nodes:
+            raise ValueError(f"Mask length {tensor.numel()} does not match {num_nodes}")
+        if repeat is None:
+            return tensor.unsqueeze(1)
+        return tensor.unsqueeze(1).repeat(1, repeat)
+    if tensor.size(0) == num_nodes:
+        return tensor
+    if tensor.size(1) == num_nodes:
+        return tensor.t().contiguous()
+    raise ValueError(f"Cannot interpret mask shape {tuple(tensor.shape)} for {num_nodes} nodes")
+
+
+def deterministic_stratified_masks(
+    y: torch.Tensor,
+    splits: int,
+    train_fraction: float = 0.5,
+    val_fraction: float = 0.25,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    rng = np.random.default_rng(0)
+    y_np = y.cpu().numpy()
+    train_masks = []
+    val_masks = []
+    test_masks = []
+    for split in range(splits):
+        rng = np.random.default_rng(split)
+        train = torch.zeros(y.numel(), dtype=torch.bool)
+        val = torch.zeros(y.numel(), dtype=torch.bool)
+        test = torch.zeros(y.numel(), dtype=torch.bool)
+        for label in np.unique(y_np):
+            idx = np.flatnonzero(y_np == label)
+            rng.shuffle(idx)
+            train_end = int(round(idx.size * train_fraction))
+            val_end = train_end + int(round(idx.size * val_fraction))
+            train[torch.from_numpy(idx[:train_end])] = True
+            val[torch.from_numpy(idx[train_end:val_end])] = True
+            test[torch.from_numpy(idx[val_end:])] = True
+        train_masks.append(train)
+        val_masks.append(val)
+        test_masks.append(test)
+    return (
+        torch.stack(train_masks, dim=1),
+        torch.stack(val_masks, dim=1),
+        torch.stack(test_masks, dim=1),
+    )
 
 
 def mask_split_count(mask: torch.Tensor) -> int:

@@ -401,8 +401,11 @@ def train_one(args, base_data, device, split: int, seed: int) -> dict[str, objec
         "primary_metric": result["primary_metric"],
         "best_val_primary": result["val_score"],
         "test_primary_at_best_val": result["test_score"],
+        "best_train_primary": result["train_score"],
+        "best_train_acc": result["train_acc"],
         "best_val_acc": result["val_acc"],
         "test_acc_at_best_val": result["test_acc"],
+        "best_train_roc_auc": result["train_roc_auc"],
         "best_val_roc_auc": result["val_roc_auc"],
         "test_roc_auc_at_best_val": result["test_roc_auc"],
         "test_macro_f1_at_best_val": result["test_macro_f1"],
@@ -410,10 +413,13 @@ def train_one(args, base_data, device, split: int, seed: int) -> dict[str, objec
         "base_alpha": baseline["alpha"],
         "baseline_val_acc": baseline["val_acc"],
         "baseline_test_acc": baseline["test_acc"],
+        "baseline_train_acc": baseline["train_acc"],
         "baseline_val_primary": baseline["val_score"],
         "baseline_test_primary": baseline["test_score"],
+        "baseline_train_primary": baseline["train_score"],
         "baseline_val_roc_auc": baseline["val_roc_auc"],
         "baseline_test_roc_auc": baseline["test_roc_auc"],
+        "baseline_train_roc_auc": baseline["train_roc_auc"],
         "baseline_macro_f1": baseline["test_macro_f1"],
         "initial_max_abs_logit_delta": baseline["initial_max_abs_logit_delta"],
         "declared_trainable_parameters": sum(
@@ -478,6 +484,7 @@ def train_residual_alpha(args, data, reliability_input, split, seed):
         data.x.size(1),
         args.hidden_dim,
         int(data.y.max().item()) + 1,
+        args.num_layers,
         args.dropout,
     ).to(data.x.device)
     set_seed(seed + 100_000)
@@ -576,6 +583,7 @@ def load_or_train_external_expert_logits(args, data, split, seed):
         data.x.size(1),
         args.hidden_dim,
         int(data.y.max().item()) + 1,
+        args.num_layers,
         args.dropout,
     ).to(data.x.device)
     set_seed(seed + 100_000)
@@ -1406,6 +1414,8 @@ def save_node_diagnostics(
             "primary_metric": result["primary_metric"],
             "best_val_primary": float(result["val_score"]),
             "test_primary_at_best_val": float(result["test_score"]),
+            "best_train_primary": float(result["train_score"]),
+            "best_train_acc": float(result["train_acc"]),
             "best_val_acc": float(result["val_acc"]),
             "test_acc_at_best_val": float(result["test_acc"]),
             "backbone_training_mode": training_mode(

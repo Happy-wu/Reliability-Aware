@@ -440,14 +440,23 @@ def summarize_dataset(dataset, headroom_rows, preference_rows):
         "best_fixed_alpha_score_mean": mean(headroom_rows, "best_fixed_alpha_score"),
         "oracle_union_mean": mean(headroom_rows, "oracle_union"),
         "oracle_union_minus_best_fixed_mean": mean(headroom_rows, "oracle_union_minus_best_fixed"),
+        "oracle_union_minus_best_fixed_std": std(headroom_rows, "oracle_union_minus_best_fixed"),
         "oracle_union_minus_best_single_mean": mean(headroom_rows, "oracle_union_minus_best_single"),
+        "oracle_union_minus_best_single_std": std(headroom_rows, "oracle_union_minus_best_single"),
         "disagreement_rate_mean": mean(headroom_rows, "disagreement_rate"),
         "local_win_rate_mean": mean(headroom_rows, "local_win_rate"),
         "global_win_rate_mean": mean(headroom_rows, "global_win_rate"),
+        "preference_count_mean": mean(preference_rows, "preference_count"),
+        "preference_count_std": std(preference_rows, "preference_count"),
+        "local_preference_count_mean": mean(preference_rows, "local_preference_count"),
+        "global_preference_count_mean": mean(preference_rows, "global_preference_count"),
         "preference_label_balance_mean": mean(preference_rows, "preference_label_balance"),
         "reliability_preference_auc_mean": mean(preference_rows, "reliability_preference_auc"),
+        "reliability_preference_auc_std": std(preference_rows, "reliability_preference_auc"),
         "feature_preference_auc_mean": mean(preference_rows, "feature_preference_auc"),
+        "feature_preference_auc_std": std(preference_rows, "feature_preference_auc"),
         "combined_preference_auc_mean": mean(preference_rows, "combined_preference_auc"),
+        "combined_preference_auc_std": std(preference_rows, "combined_preference_auc"),
         "degree_auc_mean": mean(preference_rows, "degree_auc"),
         "neighbor_variance_auc_mean": mean(preference_rows, "neighbor_variance_auc"),
         "local_similarity_auc_mean": mean(preference_rows, "local_similarity_auc"),
@@ -484,20 +493,22 @@ def render_report(
         [
             "## Dataset Summary",
             "",
-            "| Dataset | Runs | Oracle-best fixed | Oracle-best single | Disagreement | Pref balance | Rel AUC | Feat AUC | Comb AUC | Degree AUC | Local-sim AUC | Var AUC | RWSE AUC |",
-            "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+            "| Dataset | Runs | Oracle-best fixed | Pref nodes | Disagreement | Pref balance | Rel AUC | Rel std | Feat AUC | Comb AUC | Comb std | Degree AUC | Local-sim AUC | Var AUC | RWSE AUC |",
+            "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
         ]
     )
     for row in rows:
         lines.append(
             f"| {row['dataset']} | {row['runs']} | "
             f"{fmt(row['oracle_union_minus_best_fixed_mean'])} | "
-            f"{fmt(row['oracle_union_minus_best_single_mean'])} | "
+            f"{fmt(row['preference_count_mean'])} | "
             f"{fmt(row['disagreement_rate_mean'])} | "
             f"{fmt(row['preference_label_balance_mean'])} | "
             f"{fmt(row['reliability_preference_auc_mean'])} | "
+            f"{fmt(row['reliability_preference_auc_std'])} | "
             f"{fmt(row['feature_preference_auc_mean'])} | "
             f"{fmt(row['combined_preference_auc_mean'])} | "
+            f"{fmt(row['combined_preference_auc_std'])} | "
             f"{fmt(row['degree_auc_mean'])} | "
             f"{fmt(row['local_similarity_auc_mean'])} | "
             f"{fmt(row['neighbor_variance_auc_mean'])} | "
@@ -511,6 +522,7 @@ def render_report(
                 "",
                 f"- Oracle headroom over validation-selected fixed alpha: {fmt(row['oracle_union_minus_best_fixed_mean'])}.",
                 f"- Oracle headroom over the best single expert: {fmt(row['oracle_union_minus_best_single_mean'])}.",
+                f"- Effective preference nodes: {fmt(row['preference_count_mean'])}.",
                 f"- Test disagreement rate: {fmt(row['disagreement_rate_mean'])}.",
                 f"- Preference balance: {fmt(row['preference_label_balance_mean'])}.",
                 f"- Preference AUCs: reliability {fmt(row['reliability_preference_auc_mean'])}, "
@@ -573,6 +585,16 @@ def mean(rows: list[dict[str, object]], key: str) -> float:
     values = [to_float(row.get(key)) for row in rows]
     values = [value for value in values if math.isfinite(value)]
     return float(sum(values) / len(values)) if values else math.nan
+
+
+def std(rows: list[dict[str, object]], key: str) -> float:
+    values = [to_float(row.get(key)) for row in rows]
+    values = [value for value in values if math.isfinite(value)]
+    if len(values) < 2:
+        return 0.0 if len(values) == 1 else math.nan
+    avg = sum(values) / len(values)
+    variance = sum((value - avg) ** 2 for value in values) / (len(values) - 1)
+    return float(math.sqrt(variance))
 
 
 def parse_bool(value: str) -> bool:

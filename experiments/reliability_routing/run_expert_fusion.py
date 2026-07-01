@@ -279,8 +279,11 @@ def train_one(args, base_data, device, split: int, seed: int) -> dict[str, objec
         "primary_metric": final_result["primary_metric"],
         "best_val_primary": final_result["val_score"],
         "test_primary_at_best_val": final_result["test_score"],
+        "best_train_primary": final_result["train_score"],
+        "best_train_acc": final_result["train_acc"],
         "best_val_acc": final_result["val_acc"],
         "test_acc_at_best_val": final_result["test_acc"],
+        "best_train_roc_auc": final_result["train_roc_auc"],
         "best_val_roc_auc": final_result["val_roc_auc"],
         "test_roc_auc_at_best_val": final_result["test_roc_auc"],
         "test_macro_f1_at_best_val": final_result["test_macro_f1"],
@@ -444,15 +447,19 @@ def train_module(
 
 
 def evaluate_result(logits, data, epoch: int) -> dict[str, float | int]:
+    train_acc = accuracy(logits, data.y, data.train_mask)
     val_acc = accuracy(logits, data.y, data.val_mask)
     test_acc = accuracy(logits, data.y, data.test_mask)
+    train_roc_auc = binary_roc_auc(logits, data.y, data.train_mask)
     val_roc_auc = binary_roc_auc(logits, data.y, data.val_mask)
     test_roc_auc = binary_roc_auc(logits, data.y, data.test_mask)
     primary_metric = getattr(data, "primary_metric", "accuracy")
     if primary_metric == "roc_auc":
+        train_score = train_roc_auc
         val_score = val_roc_auc
         test_score = test_roc_auc
     elif primary_metric == "accuracy":
+        train_score = train_acc
         val_score = val_acc
         test_score = test_acc
     else:
@@ -460,10 +467,13 @@ def evaluate_result(logits, data, epoch: int) -> dict[str, float | int]:
     return {
         "epoch": epoch,
         "primary_metric": primary_metric,
+        "train_score": train_score,
         "val_score": val_score,
         "test_score": test_score,
+        "train_acc": train_acc,
         "val_acc": val_acc,
         "test_acc": test_acc,
+        "train_roc_auc": train_roc_auc,
         "val_roc_auc": val_roc_auc,
         "test_roc_auc": test_roc_auc,
         "test_macro_f1": macro_f1(logits, data.y, data.test_mask),

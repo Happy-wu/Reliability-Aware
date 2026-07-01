@@ -6,11 +6,14 @@ from pathlib import Path
 from src.real_data import REAL_DATASETS, load_and_validate_dataset, write_validation_report
 
 
+DEFAULT_DATASETS = tuple(name for name in REAL_DATASETS if name != "Wiki")
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Download missing PyG datasets and validate provenance/integrity."
     )
-    parser.add_argument("--datasets", nargs="+", choices=REAL_DATASETS, default=list(REAL_DATASETS))
+    parser.add_argument("--datasets", nargs="+", choices=REAL_DATASETS, default=list(DEFAULT_DATASETS))
     parser.add_argument("--data-root", type=Path, default=Path("data"))
     parser.add_argument("--report", type=Path, default=Path("outputs/real_dataset_validation.json"))
     parser.add_argument("--no-download", action="store_true")

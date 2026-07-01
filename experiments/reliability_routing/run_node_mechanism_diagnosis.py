@@ -292,6 +292,7 @@ class ExpertLogitCache:
             in_dim=int(data.x.size(1)),
             hidden_dim=int(meta["hidden_dim"]),
             out_dim=out_dim,
+            num_layers=int(meta["num_layers"]),
             dropout=float(meta["dropout"]),
         ).to(self.device)
         local_model.load_state_dict(local_payload["state_dict"])
